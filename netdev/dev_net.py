@@ -1,14 +1,15 @@
 # dev_net.py
 # TODO
+# [ ] Bring items like verbosity, reset, etc. out of ParameterRegister because
+#     I don't want the hash to be dependent on that - it's not really a hyperparam
+# [ ] Reload on instantiation if cache exists, unless reset is set
 # [ ] implement reset option with cache
 # [ ] implement reload option with cache
 # [ ] Implement logging
 # [ ] Implement initializer
-# [ ] Figure out better network instantiation:
-#       Do I want to have the user specify the network architecture exactly?
-#           Probably yes.
+# [x] Figure out better network instantiation:
+
 from torch import nn
-#import os
 import util
 import ubelt as ub
 from collections import Iterable
@@ -17,11 +18,6 @@ import IPython  # NOQA
 
 
 class DevelopmentNetwork(nn.Module):
-    # Constraints on any hyperparameters
-    # TODO do I want to bring verbosity, workdir, reset, and models_dpath outside this
-    #   hyperparameters list? Technically, they don't affect the model, so that
-    #   makes sense
-    # Default values for hyperparameters
     def __init__(self, **kwargs):
         """
             Example:
@@ -44,13 +40,13 @@ class DevelopmentNetwork(nn.Module):
                            'work_dir': str,
                            'initializer': lambda x: x is None or isinstance(x, str),
                            'reset': bool,
-                           'models_dpath': str,
+                           'models_dpath': str,  # TODO deprecated, right?
                            }
-            self.__getattr__('constraints')
+            constraints.update(self.constraints)
         except AttributeError:
+            pass
+        finally:
             self.constraints = constraints
-        else:
-            self.constraints.update(constraints)
 
         # If defaults to hyperparameters  are defined by subclass, add to them
         try:
@@ -61,13 +57,13 @@ class DevelopmentNetwork(nn.Module):
                         'work_dir': '.',
                         'initializer': None,
                         'reset': False,
-                        'models_dpath': './models',
+                        'models_dpath': './models',  # TODO deprecated, right?
                         }
-            self.__getattr__('defaults')
+            defaults.update(self.defaults)
         except AttributeError:
+            pass
+        finally:
             self.defaults = defaults
-        else:
-            self.defaults.update(defaults)
 
         self.hyperparams = util.ParameterRegister(self.constraints, self.defaults)
 
@@ -83,14 +79,23 @@ class DevelopmentNetwork(nn.Module):
 
         self.hyperparams.set_uninitialized_params(self.defaults)
 
+        # We don't want these to be included in the caching configuration
+        #  string, since they're not really hyperparameters
         self._v = self.hyperparams['verbosity']
+        self._reset = self.hyperparams['reset']
+        self._work_dir = self.hyperparams['work_dir']
+
+        self.hyperparams.unset('verbosity')
+        self.hyperparams.unset('reset')
+        self.hyperparams.unset('work_dir')
+
         self._cache_name = ub.hash_data(self.hyperparams.hashable_str, base='abc')
         self._cacher = ub.Cacher(fname=self.hyperparams['nice_name'],
                                  cfgstr=self._cache_name,
-                                 dpath=self.hyperparams['work_dir'])
+                                 dpath=self._work_dir)
         self._cacher_params = ub.Cacher(fname=self.hyperparams['nice_name'] + '_params',
                                         cfgstr=self._cache_name,
-                                        dpath=self.hyperparams['work_dir'])
+                                        dpath=self._work_dir)
 
         self._best_val_error = None
         self.epoch = None
@@ -136,56 +141,6 @@ class DevelopmentNetwork(nn.Module):
                     self._cacher.get_fpath(),
                     self.epoch,
                     self._best_val_error))
-
-
-# The sequential subnet
-# This may become deprecated, since it hides the network architecture and is
-# somewhat immutable
-# TODO this is deprecated
-class Subnet(nn.Sequential):
-    def __init__(self, input_shape, *args):
-        super().__init__()
-        self._components = []
-        for i in range(len(args)):
-            self._components.append(args[i])
-
-        self._output_shape = [util.output_shape_for(input_shape,
-                                                    self._components[0])]
-
-        self._output_shape.extend([util.output_shape_for(self._output_shape[i - 1],
-                                                         self._components[i])
-                                   for i in range(1, len(self) - 1)])
-
-    def forward(self, x):
-        y = x
-        for i in range(len(self)):
-            y = self[i](y)
-        return y
-
-    def state_dict(self):
-        components = {i: self[i].state_dict() for i in range(len(self))}
-        return components
-
-    def load_state_dict(self, state):
-        (self._components.load_state_dict(state[i]) for i in range(len(state)))
-
-    def __len__(self):
-        return len(self._components)
-
-    def __getitem__(self, idx):
-        return self._components[idx]
-
-    def __repr__(self):
-        string = '{} of length {}\n'.format(self.__class__.__name__, len(self))
-        for i in range(len(self)):
-            string += '[{}] '.format(i)
-            string += self[i].__repr__()
-        return string
-
-    def to(self, device):
-        for i in range(len(self)):
-            self._components[i].to(device)
-        return self
 
 
 if __name__ == "__main__":
