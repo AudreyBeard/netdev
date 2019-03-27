@@ -1,0 +1,13 @@
+Metadata-Version: 1.0
+Name: netdev
+Version: 0.0.0
+Summary: A collection of tools to make neural network development faster, easier, and more readable
+Home-page: https://github.com/JoshuaBeard/netdev
+Author: Joshua Beard
+Author-email: joshuabeard92@gmail.com
+License: UNKNOWN
+Description-Content-Type: UNKNOWN
+Description: # netdev
+        A repository for clear and quick neural network development
+        
+Platform: UNKNOWN
