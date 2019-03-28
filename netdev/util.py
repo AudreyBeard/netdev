@@ -1,7 +1,6 @@
 from numpy import prod
 import torch
 import collections
-import ipdb  # NOQA
 
 
 def to_onehot(vec, n_classes=10):

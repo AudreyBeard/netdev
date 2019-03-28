@@ -13,8 +13,6 @@ from torch import nn
 import util
 import ubelt as ub
 from collections import Iterable
-import ipdb  # NOQA
-import IPython  # NOQA
 
 
 class DevelopmentNetwork(nn.Module):
@@ -106,8 +104,6 @@ class DevelopmentNetwork(nn.Module):
         # Set all unitialized hyperparameters to their default value
 
     def parameters(self):
-        #return ((p for p in self._net[i].parameters()) for i in range(len(self._net)))
-        #return(p for component in self._net for p in component.parameters())
         return super().parameters()
 
     def to(self, device):
