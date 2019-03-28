@@ -5,6 +5,9 @@ from torchvision.models import resnet
 from . import util
 import numpy as np
 
+# TODO:
+# [ ] Get rid of the 'dvecs' construction
+
 
 class Downsample(nn.Sequential):
     def __init__(self, in_channels, out_channels, stride=1, expansion=4):
