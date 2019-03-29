@@ -96,6 +96,7 @@ class NetworkSkeleton(nn.Module):
                                         dpath=self._work_dir)
 
         self._best_val_error = None
+        self._best_loss = None
         self.epoch = None
 
         if self._v > 0:
@@ -111,16 +112,18 @@ class NetworkSkeleton(nn.Module):
         #return self
         return super().to(device)
 
-    def on_epoch(self, epoch, error):
+    def on_epoch(self, epoch=-1, error=-1, loss=-1):
         self.epoch = epoch
         if self._best_val_error is None or error < self._best_val_error:
             self._best_val_error = error
+            self._best_loss = loss
             self.cache()
 
     def cache(self):
         cached_data = self.state_dict()
         cached_data['epoch'] = self.epoch
         cached_data['best_val_error'] = self._best_val_error
+        cached_data['best_loss'] = self._best_loss
         self._cacher.save(cached_data)
         self._cacher_params.save(self.hyperparams.hashable_str)
 
@@ -129,14 +132,16 @@ class NetworkSkeleton(nn.Module):
         if data is None:
             print('Cacher did not find a model at {}'.format(self._cacher.get_fpath()))
         else:
+            self._best_loss = data.pop('best_loss')
             self._best_val_error = data.pop('best_val_error')
             self.epoch = data.pop('epoch')
             self.load_state_dict(data)
             if self._v > 0:
-                print('Loaded model from {}\n  epoch: {}\n  error: {}'.format(
+                print('Loaded model from {}\n  epoch: {}\n  error: {}\n  loss: {}'.format(
                     self._cacher.get_fpath(),
                     self.epoch,
-                    self._best_val_error))
+                    self._best_val_error,
+                    self._best_loss))
 
 
 if __name__ == "__main__":

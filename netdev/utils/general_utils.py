@@ -1,5 +1,7 @@
 import collections
 from warnings import warn
+# TODO
+# [ ] refactor check_constraints to match what is in youtill, since that is more well-though-out
 
 
 def deprecated(f):
@@ -105,6 +107,7 @@ def check_constraints(param_value, param_name, constraints):
         return _check_constraint(param_value, constraint, param_name)
 
 
+@deprecated
 def check_parameter(param_value, param_name, valid_options_dict):
     """ function for checking if a parameter value is valid in the options dictionary.
         Parameters:
