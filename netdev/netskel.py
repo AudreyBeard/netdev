@@ -10,22 +10,22 @@
 # [x] Figure out better network instantiation:
 
 from torch import nn
-import util
+from utils.general_utils import ParameterRegister
 import ubelt as ub
 from collections import Iterable
 
 
-class DevelopmentNetwork(nn.Module):
+class NetworkSkeleton(nn.Module):
     def __init__(self, **kwargs):
         """
             Example:
-                >>> self = DevelopmentNetwork(input_shape=(1, 1, 5, 5),
+                >>> self = NetworkSkeleton(input_shape=(1, 1, 5, 5),
                 ...                           output_len=2,
                 ...                           initializer=None,
                 ...                           verbosity=1,
                 ...                           nice_name='untitled',
                 ...                           work_dir='./models')
-                DevelopmentNetwork: models/untitled/model.pkl
+                NetworkSkeleton: models/untitled/model.pkl
         """
         super().__init__()
 
@@ -63,7 +63,7 @@ class DevelopmentNetwork(nn.Module):
         finally:
             self.defaults = defaults
 
-        self.hyperparams = util.ParameterRegister(self.constraints, self.defaults)
+        self.hyperparams = ParameterRegister(self.constraints, self.defaults)
 
         # Check if hyperparameters are properly specified
         kwarg_isgood = self.hyperparams.check_kwargs(**kwargs)
