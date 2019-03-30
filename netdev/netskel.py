@@ -1,6 +1,6 @@
 # dev_net.py
 # TODO
-# [ ] Bring items like verbosity, reset, etc. out of ParameterRegister because
+# [x] Bring items like verbosity, reset, etc. out of ParameterRegister because
 #     I don't want the hash to be dependent on that - it's not really a hyperparam
 # [ ] Reload on instantiation if cache exists, unless reset is set
 # [ ] implement reset option with cache
@@ -20,11 +20,11 @@ class NetworkSkeleton(nn.Module):
         """
             Example:
                 >>> self = NetworkSkeleton(input_shape=(1, 1, 5, 5),
-                ...                           output_len=2,
-                ...                           initializer=None,
-                ...                           verbosity=1,
-                ...                           nice_name='untitled',
-                ...                           work_dir='./models')
+                ...                        output_len=2,
+                ...                        initializer=None,
+                ...                        verbosity=1,
+                ...                        nice_name='untitled',
+                ...                        work_dir='./models')
                 NetworkSkeleton: models/untitled/model.pkl
         """
         super().__init__()
@@ -101,7 +101,8 @@ class NetworkSkeleton(nn.Module):
         if self._v > 0:
             print('Cache location: {}'.format(self._cacher.get_fpath()))
 
-        # Set all unitialized hyperparameters to their default value
+        if not self._reset:
+            self.load_cache()
 
     def parameters(self):
         return super().parameters()
@@ -127,7 +128,8 @@ class NetworkSkeleton(nn.Module):
     def load_cache(self):
         data = self._cacher.tryload()
         if data is None:
-            print('Cacher did not find a model at {}'.format(self._cacher.get_fpath()))
+            if self._v > 0:
+                print('Cacher did not find a model at {}'.format(self._cacher.get_fpath()))
         else:
             self._best_val_error = data.pop('best_val_error')
             self.epoch = data.pop('epoch')
