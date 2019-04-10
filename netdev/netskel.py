@@ -119,8 +119,6 @@ class NetworkSkeleton(nn.Module):
         else:
             self.epoch = epoch
         if self._best_loss is None or loss < self._best_loss:
-            if self._v > 0:
-                print("model improved, caching...")
             self._best_val_error = error
             self._best_loss = loss
             self.cache()
