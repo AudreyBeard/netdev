@@ -10,7 +10,7 @@
 # [x] Figure out better network instantiation:
 
 from torch import nn
-from utils.general_utils import ParameterRegister
+from .utils.general_utils import ParameterRegister
 import ubelt as ub
 from collections import Iterable
 
@@ -102,8 +102,6 @@ class NetworkSkeleton(nn.Module):
         if self._v > 0:
             print('Cache location: {}'.format(self._cacher.get_fpath()))
 
-        # Set all unitialized hyperparameters to their default value
-
     def parameters(self):
         return super().parameters()
 
@@ -114,7 +112,9 @@ class NetworkSkeleton(nn.Module):
 
     def on_epoch(self, epoch=-1, error=-1, loss=-1):
         self.epoch = epoch
-        if self._best_val_error is None or error < self._best_val_error:
+        if self._best_loss is None or loss < self._best_loss:
+            if self._v > 0:
+                print("model improved, caching...")
             self._best_val_error = error
             self._best_loss = loss
             self.cache()

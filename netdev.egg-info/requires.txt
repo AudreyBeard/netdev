@@ -1,6 +1,4 @@
 numpy
 torch
 ubelt
-ipdb
-IPython
 torchvision

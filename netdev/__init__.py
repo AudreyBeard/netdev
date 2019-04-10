@@ -1,2 +1,3 @@
 # flake8:NOQA
-from netskel import NetworkSkeleton
+
+__all__ = ['netskel']
