@@ -112,8 +112,12 @@ class NetworkSkeleton(nn.Module):
         #return self
         return super().to(device)
 
-    def on_epoch(self, epoch=-1, error=-1, loss=-1):
-        self.epoch = epoch
+    def on_epoch(self, epoch=None, error=None, loss=None):
+        assert loss is not None
+        if epoch is None:
+            self.epoch += 1
+        else:
+            self.epoch = epoch
         if self._best_loss is None or loss < self._best_loss:
             if self._v > 0:
                 print("model improved, caching...")
