@@ -101,8 +101,6 @@ class NetworkSkeleton(nn.Module):
 
         if self._v > 0:
             print('Cache location: {}'.format(self._cacher.get_fpath()))
-        if not self._reset:
-            self.load_cache()
 
     def parameters(self):
         return super().parameters()
