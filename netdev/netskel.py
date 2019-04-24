@@ -116,10 +116,18 @@ class NetworkSkeleton(nn.Module):
             self.epoch += 1
         else:
             self.epoch = epoch
-        if self._best_loss is None or loss < self._best_loss:
-            self._best_val_error = error
-            self._best_loss = loss
-            self.cache()
+
+        # If error is not given, fall back to loss as a performance metric
+        if error is None:
+            if self._best_loss is None or loss < self._best_loss:
+                self._best_val_error = error
+                self._best_loss = loss
+                self.cache()
+        else:
+            if self._best_val_error is None or error < self._best_val_error:
+                self._best_val_error = error
+                self._best_loss = loss
+                self.cache()
 
     def cache(self):
         cached_data = self.state_dict()
