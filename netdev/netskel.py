@@ -105,35 +105,51 @@ class NetworkSkeleton(nn.Module):
             self.load_cache()
 
     def parameters(self):
+        """Parameters, necessary for torch's training methodology
+        """
         return super().parameters()
 
     def to(self, device):
+        """Place network on device
+        """
         #self._net = self._net.to(device)
         #return self
         return super().to(device)
 
     def on_epoch(self, epoch, error):
+        """All operations to be performed at the end of an epoch
+        """
         self.epoch = epoch
         if self._best_val_error is None or error < self._best_val_error:
             self._best_val_error = error
             self.cache()
 
     def cache(self):
-        cached_data = self.state_dict()
-        cached_data['epoch'] = self.epoch
-        cached_data['best_val_error'] = self._best_val_error
+        """Uses the cache name of the model to save a file with the weights and
+            other pertinent information
+        """
+        cached_data = {'weights': self.state_dict(),
+                       'epoch': self.epoch,
+                       'best_val_error': self._best_val_error,
+                       'best_loss': self._best_loss,
+                       }
         self._cacher.save(cached_data)
         self._cacher_params.save(self.hyperparams.hashable_str)
 
     def load_cache(self):
+        """Loads the cached attributes of the previously saved model with the
+            same hyperparameters. If no model is found with the same cache
+            name, this is a no-op
+        """
         data = self._cacher.tryload()
         if data is None:
             if self._v > 0:
                 print('Cacher did not find a model at {}'.format(self._cacher.get_fpath()))
         else:
-            self._best_val_error = data.pop('best_val_error')
-            self.epoch = data.pop('epoch')
-            self.load_state_dict(data)
+            self._best_val_error = data['best_val_error']
+            self._best_loss = data['best_loss']
+            self.epoch = data['epoch']
+            self.load_state_dict(data['weights'])
             if self._v > 0:
                 print('Loaded model from {}\n  epoch: {}\n  error: {}'.format(
                     self._cacher.get_fpath(),
