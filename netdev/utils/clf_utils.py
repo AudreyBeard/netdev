@@ -6,7 +6,8 @@ def to_onehot(vec, n_classes=10):
         n_classes = vec.unique().shape[0]
 
     onehot = torch.zeros(vec.shape[0], n_classes)
-    onehot[torch.arange(vec.shape[0]), vec] = 1
+    for i in range(n_classes):
+        onehot[:, i] = vec == i
     return onehot
 
 

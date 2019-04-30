@@ -10,7 +10,7 @@
 # [x] Figure out better network instantiation:
 
 from torch import nn
-from utils.general_utils import ParameterRegister
+from .utils.general_utils import ParameterRegister
 import ubelt as ub
 from collections import Iterable
 
@@ -96,13 +96,11 @@ class NetworkSkeleton(nn.Module):
                                         dpath=self._work_dir)
 
         self._best_val_error = None
+        self._best_loss = None
         self.epoch = None
 
         if self._v > 0:
             print('Cache location: {}'.format(self._cacher.get_fpath()))
-
-        if not self._reset:
-            self.load_cache()
 
     def parameters(self):
         """Parameters, necessary for torch's training methodology
@@ -116,23 +114,35 @@ class NetworkSkeleton(nn.Module):
         #return self
         return super().to(device)
 
-    def on_epoch(self, epoch, error):
+    def on_epoch(self, epoch=None, error=None, loss=None):
         """All operations to be performed at the end of an epoch
         """
-        self.epoch = epoch
-        if self._best_val_error is None or error < self._best_val_error:
-            self._best_val_error = error
-            self.cache()
+        assert loss is not None
+        if epoch is None:
+            self.epoch += 1
+        else:
+            self.epoch = epoch
+
+        # If error is not given, fall back to loss as a performance metric
+        if error is None:
+            if self._best_loss is None or loss < self._best_loss:
+                self._best_val_error = error
+                self._best_loss = loss
+                self.cache()
+        else:
+            if self._best_val_error is None or error < self._best_val_error:
+                self._best_val_error = error
+                self._best_loss = loss
+                self.cache()
 
     def cache(self):
         """Uses the cache name of the model to save a file with the weights and
             other pertinent information
         """
-        cached_data = {'weights': self.state_dict(),
-                       'epoch': self.epoch,
-                       'best_val_error': self._best_val_error,
-                       'best_loss': self._best_loss,
-                       }
+        cached_data = self.state_dict()
+        cached_data['epoch'] = self.epoch
+        cached_data['best_val_error'] = self._best_val_error
+        cached_data['best_loss'] = self._best_loss
         self._cacher.save(cached_data)
         self._cacher_params.save(self.hyperparams.hashable_str)
 
@@ -141,20 +151,23 @@ class NetworkSkeleton(nn.Module):
             same hyperparameters. If no model is found with the same cache
             name, this is a no-op
         """
+        if self._v > 0:
+            print("Attempting cache load at {}".format(self._cacher.get_fpath()))
         data = self._cacher.tryload()
         if data is None:
             if self._v > 0:
                 print('Cacher did not find a model at {}'.format(self._cacher.get_fpath()))
         else:
-            self._best_val_error = data['best_val_error']
-            self._best_loss = data['best_loss']
-            self.epoch = data['epoch']
-            self.load_state_dict(data['weights'])
+            self._best_loss = data.pop('best_loss')
+            self._best_val_error = data.pop('best_val_error')
+            self.epoch = data.pop('epoch')
+            self.load_state_dict(data)
             if self._v > 0:
-                print('Loaded model from {}\n  epoch: {}\n  error: {}'.format(
+                print('Loaded model from {}\n  epoch: {}\n  error: {}\n  loss: {}'.format(
                     self._cacher.get_fpath(),
                     self.epoch,
-                    self._best_val_error))
+                    self._best_val_error,
+                    self._best_loss))
 
 
 if __name__ == "__main__":
