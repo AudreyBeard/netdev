@@ -1,6 +1,9 @@
 from .utils.general_utils import ParameterRegister
 import ubelt as ub
 import torch
+# TODO:
+# [ ] logging
+# [ ]
 
 
 class NetworkSystem(object):
@@ -69,8 +72,16 @@ class NetworkSystem(object):
 
         if self.params['hash_on'] is not None:
             self.init_cacher(**self.params['hash_on'])
+        else:
+            # TODO cache on modules of the system: model, objective, optimizer, loader, etc
+            self.init_cacher(**self.params)
+
+        # Attach all passed-in parameters to the system
+        for k, v in self.params.items():
+            self.__setattr__(k, v)
 
         return
+        self.status = None
 
     def init_cacher(self, **kwargs):
         hashable = '_'.join(['{}:{}'.format(k, v) for k, v in kwargs.items()])
@@ -81,14 +92,15 @@ class NetworkSystem(object):
         self.location = self.cacher.get_fpath()
 
     def train(self):
+        self.status = 'training'
         for e in range(self.epochs):
             self.epoch = e
             for i, data in enumerate(self.loaders['train']):
-                loss_dict = self.forward(data)
+                batch_stats_dict = self.forward(data)
 
-                self.log_it(loss_dict)
+                self.log_it(batch_stats_dict)
 
-                self.backward(loss_dict['loss'])
+                self.backward(batch_stats_dict['loss'])
 
             for i, data in enumerate(self.loaders['val']):
                 with torch.no_grad():
@@ -98,7 +110,16 @@ class NetworkSystem(object):
             self.on_epoch()
         return
 
+    def forward(self):
+        """ Analogous to the torch forward method - feed-forward component
+            Implement this in all subclasses
+            Should return a dictionary with at least a 'loss' key corresponding
+            to the scalar loss value returned by self.objective
+        """
+        raise NotImplementedError
+
     def on_epoch(self):
+        # TODO Handle all caching logic here, not in the network
         for k in self.sequential_log.keys():
             self.sequential_log[k] /= self.params['batch_size']
         self.model.on_epoch(epoch=self.epoch,
@@ -106,6 +127,8 @@ class NetworkSystem(object):
                             error=self.sequential_log['error_val'][self.epoch])
 
     def backward(self, loss):
+        """ Analog to the torch backward method - backpropagation
+        """
         self.optimizer.zero_grad()
         loss.backward()
         self.optimizer.step()
@@ -115,9 +138,10 @@ class NetworkSystem(object):
             self.sequential_log[k][self.epoch] += v
 
     def test(self):
+        self.status = 'testing'
+        # TODO should I implement the skeleton of this?
         raise NotImplementedError
-        return
 
     def reset(self):
+        # TODO implement this
         raise NotImplementedError
-        return
