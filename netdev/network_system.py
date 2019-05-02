@@ -6,21 +6,30 @@ import torch
 # [ ]
 
 
-class NetworkSystem(object):
+class SystemHyperparameters(object):
     def __init__(self, **kwargs):
+        
+
+
+class NetworkSystem(object):
+    def __init__(self, verbosity=1, epochs=1, work_dir='./models',
+                 device='cpu', hash_on=None, nice_name='untitled',
+                 batch_size=1, **kwargs):
+        """
+            Network training and testing system, designed for modules to plug
+            into for simple part swapping. Several system parameters are simply
+            for housekeeping and therefore do not need to be considered when
+            saving the model, others affect the performance of the model and
+            should therefore be used in differentiating between different
+            models when saving.
+        """
         try:
             constraints = {
-                'verbosity': int,
-                'epochs': int,
                 'model': None,
                 'objective': None,
                 'optimizer': None,
                 'datasets': None,
                 'loaders': None,
-                'work_dir': str,
-                'device': str,
-                'hash_on': dict,
-                'nice_name': str,
             }
             constraints.update(self.constraints)
         except AttributeError:
@@ -31,17 +40,11 @@ class NetworkSystem(object):
         # If defaults to hyperparameters  are defined by subclass, add to them
         try:
             defaults = {
-                'verbosity': 0,
-                'epochs': 1,
                 'model': None,
                 'objective': None,
                 'optimizer': None,
                 'datasets': None,
                 'loaders': None,
-                'work_dir': './models',
-                'device': 'cpu',
-                'hash_on': None,
-                'nice_name': self.__class__.__name__,
             }
             defaults.update(self.defaults)
         except AttributeError:
@@ -49,46 +52,53 @@ class NetworkSystem(object):
         finally:
             self.defaults = defaults
 
-        self.params = ParameterRegister(self.constraints, self.defaults)
+        self.modules = ParameterRegister(self.constraints, self.defaults)
 
         # Check if hyperparameters are properly specified
-        kwarg_isgood = self.params.check_kwargs(**kwargs)
+        kwarg_isgood = self.modules.check_kwargs(**kwargs)
         if not all(kwarg_isgood.values()):
             msg = self._bad_init_msg(kwarg_isgood, kwargs)
             raise ValueError("\n" + msg)
         else:
             # Set hyperparameters
             for k, v in sorted(kwargs.items()):
-                self.params[k] = v
+                self.modules[k] = v
 
-        self.params.set_uninitialized_params(self.defaults)
+        self.modules.set_uninitialized_params(self.defaults)
 
-        self.epochs = self.params['epochs']
-        self.sequential_log = [None for i in range(self.epochs)]
+        self._v = verbosity
+        self.epochs = epochs
+        self.dir = work_dir
+        self._dev = device
+        self.nice_name = nice_name
+        self.batch_size = batch_size
 
         self.cache_name = None
         self.cacher = None
         self.location = None
 
-        if self.params['hash_on'] is not None:
-            self.init_cacher(**self.params['hash_on'])
+        self.sequential_log = [None for i in range(self.epochs)]
+
+        # If user specified parameters to use for hash cfgstr, use them
+        if hash_on is not None:
+            self.init_cacher(hash_on=hash_on)
+        # Default: hash on modules
         else:
-            # TODO cache on modules of the system: model, objective, optimizer, loader, etc
-            self.init_cacher(**self.params)
+            self.init_cacher(hash_on=self.modules)
 
         # Attach all passed-in parameters to the system
-        for k, v in self.params.items():
+        for k, v in self.modules.items():
             self.__setattr__(k, v)
 
         return
         self.status = None
 
-    def init_cacher(self, **kwargs):
-        hashable = '_'.join(['{}:{}'.format(k, v) for k, v in kwargs.items()])
+    def init_cacher(self, hash_on=dict()):
+        hashable = '_'.join(['{}:{}; '.format(k, v) for k, v in hash_on.items()])
         self.cache_name = ub.hash_data(hashable, base='abc')
-        self.cacher = ub.Cacher(fname=self.params['nice_name'],
+        self.cacher = ub.Cacher(fname=self.nice_name,
                                 cfgstr=self.cache_name,
-                                dpath=self.params['work_dir'])
+                                dpath=self.dir)
         self.location = self.cacher.get_fpath()
 
     def train(self):
@@ -121,7 +131,7 @@ class NetworkSystem(object):
     def on_epoch(self):
         # TODO Handle all caching logic here, not in the network
         for k in self.sequential_log.keys():
-            self.sequential_log[k] /= self.params['batch_size']
+            self.sequential_log[k] /= self.batch_size
         self.model.on_epoch(epoch=self.epoch,
                             loss=self.sequential_log['loss_val'][self.epoch],
                             error=self.sequential_log['error_val'][self.epoch])
