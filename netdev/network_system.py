@@ -3,7 +3,7 @@ import ubelt as ub
 import torch
 
 
-class NetworkSchool(object):
+class NetworkSystem(object):
     def __init__(self, **kwargs):
         try:
             constraints = {
