@@ -111,7 +111,7 @@ class NetworkSystem(object):
             for i, data in enumerate(self.loaders['val']):
                 with torch.no_grad():
                     loss_dict_val = self.forward_val(data)
-                    self.log_it(loss_dict_val)
+                    self.log_it(loss_dict_val, partition='val')
 
             self.on_epoch()
         return
@@ -128,6 +128,7 @@ class NetworkSystem(object):
         # TODO Handle all caching logic here, not in the network
         for k in self.sequential_log.keys():
             self.sequential_log[k] /= self.batch_size
+
         self.model.on_epoch(epoch=self.epoch,
                             loss=self.sequential_log['loss_val'][self.epoch],
                             error=self.sequential_log['error_val'][self.epoch])
@@ -139,9 +140,10 @@ class NetworkSystem(object):
         loss.backward()
         self.optimizer.step()
 
-    def log_it(self, **kwargs):
+    def log_it(self, partition='train', **kwargs):
+        suffix = '_' + partition if partition else ''
         for k, v in kwargs.items():
-            self.sequential_log[k][self.epoch] += v
+            self.sequential_log[k + suffix][self.epoch] += v
 
     def test(self):
         self.status = 'testing'
