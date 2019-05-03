@@ -168,6 +168,40 @@ class ParameterRegister(collections.OrderedDict):
         valid = {k: check_constraints(v, k, self.constraints) for k, v in kwargs.items()}
         return valid
 
+    @property
+    def bad_param_string(self, **kwargs):
+        """ Checks parameters and returns a string of poorly-specified
+            parameters. Useful for error message prining
+        """
+        def fmt(key, expected, actual):
+            return '{}: expects {}, got {}'.format(key, expected, actual)
+
+        valid = self.check_kwargs(**kwargs)
+        if not all(valid.values()):
+            bad_string = ''
+            for k, v in valid.items():
+                if not v:
+                    bad_string += fmt(k, self.constraints, kwargs[k])
+        else:
+            bad_string = None
+
+        return bad_string
+
+    def try_set_params(self, **kwargs):
+        """ Checks given kwargs against registered constraints. If all kwargs
+            are properly specified, sets the internal dictionary. If not,
+            returns a string denoting the poorly-specced kwargs, useful for
+            quick setting and error printing.
+        """
+        valid = self.check_kwargs(**kwargs)
+        if not all(valid.values()):
+            rc = '; '.join(['{}: expects {}, got {}'.format(k, self.constraints[k], kwargs[k]) for k, v in valid if not v])
+        else:
+            for k, v in sorted(kwargs.items()):
+                self[k] = v
+            rc = None
+        return rc
+
     def set_uninitialized_params(self, defaults=None):
         if defaults is not None:
             defaults_notset = {key: defaults[key]

@@ -8,7 +8,7 @@ import torch
 
 class SystemHyperparameters(object):
     def __init__(self, **kwargs):
-        
+        return
 
 
 class NetworkSystem(object):
@@ -28,7 +28,7 @@ class NetworkSystem(object):
                 'model': None,
                 'objective': None,
                 'optimizer': None,
-                'datasets': None,
+                'datasets': dict,
                 'loaders': None,
             }
             constraints.update(self.constraints)
@@ -54,22 +54,18 @@ class NetworkSystem(object):
 
         self.modules = ParameterRegister(self.constraints, self.defaults)
 
-        # Check if hyperparameters are properly specified
-        kwarg_isgood = self.modules.check_kwargs(**kwargs)
-        if not all(kwarg_isgood.values()):
-            msg = self._bad_init_msg(kwarg_isgood, kwargs)
-            raise ValueError("\n" + msg)
-        else:
-            # Set hyperparameters
-            for k, v in sorted(kwargs.items()):
-                self.modules[k] = v
+        # Check if modules are properly specified
+        poorly_specced = self.modules.try_set_params(**kwargs)
+
+        if poorly_specced:
+            raise ValueError(poorly_specced)
 
         self.modules.set_uninitialized_params(self.defaults)
 
         self._v = verbosity
         self.epochs = epochs
         self.dir = work_dir
-        self._dev = device
+        self.device = device
         self.nice_name = nice_name
         self.batch_size = batch_size
 
