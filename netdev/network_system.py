@@ -30,7 +30,6 @@ class NetworkSystem(object):
                 'model': None,
                 'objective': None,
                 'optimizer': None,
-                'datasets': dict,
                 'loaders': None,
             }
             constraints.update(self.constraints)
@@ -43,7 +42,6 @@ class NetworkSystem(object):
                 'model': None,
                 'objective': None,
                 'optimizer': None,
-                'datasets': None,
                 'loaders': None,
             }
             defaults.update(self.defaults)
@@ -113,13 +111,14 @@ class NetworkSystem(object):
     def train(self, n_epochs=None):
         """ Called once, to train model over the number of defined epochs
         """
-        self.status = 'training'
 
         if n_epochs is not None:
             self.epochs = self.epoch + n_epochs
 
         while self.epoch < self.epochs:
             self.epoch += 1
+
+            self.status = 'train'
             for i, data in enumerate(self.loaders['train']):
 
                 # Feed forward
@@ -130,21 +129,34 @@ class NetworkSystem(object):
 
                 self.backward(batch_stats_dict['loss'])
 
+            self.status = 'val'
             for i, data in enumerate(self.loaders['val']):
                 with torch.no_grad():
-                    loss_dict_val = self.forward_val(data)
+                    loss_dict_val = self.forward(data)
                     self.log_it(loss_dict_val, partition='val')
 
             self.on_epoch()
         return
 
-    def forward(self):
+    def forward(self, data):
         """ Analogous to the torch forward method - feed-forward component
             Implement this in all subclasses
             Should return a dictionary with at least a 'loss' key corresponding
             to the scalar loss value returned by self.objective
+
+            Should return a dictionary with at least a 'loss' key and whatever
+            other keys included in self.journal, without the `_train` or
+            `_val` suffixes.
         """
         raise NotImplementedError
+
+    def forward_val(self, data):
+        """ Called during self.train()
+            This exists in case of very special actions that must be taken
+            during validation, that otherwise couldn't (or shouldn't) be
+            handled with an if-statement
+        """
+        return self.forward(data)
 
     # TODO test
     @property
@@ -152,15 +164,26 @@ class NetworkSystem(object):
         """ Returns most recent journal entries for each trackable metric as a
             dictionary
         """
-        return {k: v[self._e] for k, v in self.journal.items()}
+        return {k: v[self.epoch] for k, v in self.journal.items()}
 
+    # TODO test
     def epoch_summary(self, precision=5):
+        def fmt_key(string, width):
+            return '{0:{width}}'.format(string, width=width)
+
+        def fmt_val(number, precision):
+            return '{0:.{precision}g}'.format(number, precision=precision)
+
         # TODO implement
-        summary = 'Epoch {}:'.format(self._e)
+        summary = 'Epoch {}:\n'.format(self.epoch)
         max_width = max([len(k) for k in self.journal.keys()])
-        header = ' | '.join('{:max_width}'
-        # TODO start here
-        return
+        max_width = max(max_width, precision)
+        metrics = self.last_metrics
+        summary += ' | '.join([fmt_key(k, max_width) for k in metrics.keys()])
+        summary += '\n'
+        summary += ' | '.join([fmt_val(v, max_width) for v in metrics.values()])
+        summary += '\n'
+        return summary
 
     # TODO test
     def _scale_last_journal_entry(self):
@@ -169,7 +192,7 @@ class NetworkSystem(object):
             NOTE: This may not work if batch loading is not used
         """
         for k in self.journal.keys():
-            self.journal[k][self._e] /= self.loaders['train'].batch_size
+            self.journal[k][self.epoch] /= self.loaders['train'].batch_size
 
     # TODO test
     def _check_model_improved(self):
@@ -177,13 +200,12 @@ class NetworkSystem(object):
         """
 
         # The model is considered to have improved if:
+        # a) It is being trained for the first time
         if self.best_metrics is None:
-
-            # a) It is being trained for the first time
             model_improved = True
-        else:
 
-            # b) Its last selection metric is lower than the previous best
+        # b) Its last selection metric is lower than the previous best
+        else:
             model_improved = self.last_metrics[self.selection_metric] < \
                 self.best_metrics[self.selection_metric]
         return model_improved
@@ -201,19 +223,19 @@ class NetworkSystem(object):
         if self.scale_metrics:
             self._scale_last_journal_entry()
 
+        print(self.epoch_summary())
+
         # If model has improved, take requisite actions
         if self._check_model_improved():
             self.on_model_improved()
 
-    def save(self, metrics=None):
+    def save_model(self):
         """ Save model parameters and some useful training information for
             future training or testing
         """
-        if metrics is None:
-            metrics = self.best_metrics
         cache_data = {'model': self.model.state_dict(),
-                      'metrics': metrics,
-                      'epoch': self._e}
+                      'journal': self.journal,
+                      'epoch': self.epoch}
 
         if self._v > 0:
             key_str = ', '.join(list(cache_data.keys()))
@@ -229,8 +251,8 @@ class NetworkSystem(object):
             print('Attempting cache load at {}'.format(self.location))
         cache_data = self.cacher.try_load()
         if cache_data:
-            self.best_metrics = cache_data['metrics']
-            self._e = cache_data['epoch']
+            self.journal = cache_data['journal']
+            self.epoch = cache_data['epoch']
             self.model = self.model.load_state_dict(cache_data['model'])
         else:
             print('No cache data found!')
@@ -248,7 +270,7 @@ class NetworkSystem(object):
             self.sequential_log[k + suffix][self.epoch] += v
 
     def test(self):
-        self.status = 'testing'
+        self.status = 'test'
         # TODO should I implement the skeleton of this?
         raise NotImplementedError
 

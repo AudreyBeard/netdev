@@ -7,7 +7,7 @@ import torch.no_grad
 
 
 __all__ = [
-    'no_grad_if_testing',
+    'no_grad_if',
     'deprecated',
     'isiterable',
     'check_constraints',
@@ -15,16 +15,16 @@ __all__ = [
 ]
 
 
-class no_grad_if_testing(torch.no_grad):
+class no_grad_if(torch.no_grad):
     def __enter__(self, status):
         self.status = status
-        if self.status == 'testing':
+        if self.status:
             super().__enter__()
 
         return
 
     def __exit__(self, *args):
-        if self.status == 'testing':
+        if self.status:
             super().__exit__(*args)
 
         return False
