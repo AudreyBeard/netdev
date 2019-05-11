@@ -2,9 +2,9 @@
 # TODO
 # [x] Bring items like verbosity, reset, etc. out of ParameterRegister because
 #     I don't want the hash to be dependent on that - it's not really a hyperparam
-# [ ] Reload on instantiation if cache exists, unless reset is set
-# [ ] implement reset option with cache
-# [ ] implement reload option with cache
+# [x] Reload on instantiation if cache exists, unless reset is set
+# [x] implement reset option with cache
+# [x] implement reload option with cache
 # [ ] Implement logging
 # [ ] Implement initializer
 # [x] Figure out better network instantiation:

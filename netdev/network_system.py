@@ -1,20 +1,21 @@
-from .utils.general_utils import ParameterRegister
+#from collections import Iterable
 import ubelt as ub
 import torch
+from .utils.general_utils import ParameterRegister
 # TODO:
 # [ ] logging
-# [ ]
-
-
-class SystemHyperparameters(object):
-    def __init__(self, **kwargs):
-        return
+# [x] caching
+# [ ] epoch_summary()
 
 
 class NetworkSystem(object):
     def __init__(self, verbosity=1, epochs=1, work_dir='./models',
                  device='cpu', hash_on=None, nice_name='untitled',
-                 batch_size=1, **kwargs):
+                 batch_size=1, reset=False, scale_metrics=True,
+                 selection_metric='error_val',
+                 metrics=['loss_train', 'error_train', 'loss_val', 'error_val'],
+                 **kwargs):
+
         """
             Network training and testing system, designed for modules to plug
             into for simple part swapping. Several system parameters are simply
@@ -23,6 +24,7 @@ class NetworkSystem(object):
             should therefore be used in differentiating between different
             models when saving.
         """
+        # These define some important items that impact the model
         try:
             constraints = {
                 'model': None,
@@ -36,8 +38,6 @@ class NetworkSystem(object):
             pass
         finally:
             self.constraints = constraints
-
-        # If defaults to hyperparameters  are defined by subclass, add to them
         try:
             defaults = {
                 'model': None,
@@ -56,7 +56,6 @@ class NetworkSystem(object):
 
         # Check if modules are properly specified
         poorly_specced = self.modules.try_set_params(**kwargs)
-
         if poorly_specced:
             raise ValueError(poorly_specced)
 
@@ -68,12 +67,18 @@ class NetworkSystem(object):
         self.device = device
         self.nice_name = nice_name
         self.batch_size = batch_size
+        self.scale_metrics = scale_metrics
 
         self.cache_name = None
         self.cacher = None
         self.location = None
+        self.status = None
+        self._e = -1
 
-        self.sequential_log = [None for i in range(self.epochs)]
+        # Keep a tensor for tracking required metrics
+        self.journal = {k: torch.zeros(self.epochs) for k in metrics}
+        self.selection_metric = selection_metric
+        self.best_metrics = None
 
         # If user specified parameters to use for hash cfgstr, use them
         if hash_on is not None:
@@ -86,25 +91,37 @@ class NetworkSystem(object):
         for k, v in self.modules.items():
             self.__setattr__(k, v)
 
+        if reset:
+            self.load()
+
         return
-        self.status = None
 
     def init_cacher(self, hash_on=dict()):
+        """ Initialize cacher for saving and loading models
+        """
         hashable = '_'.join(['{}:{}; '.format(k, v) for k, v in hash_on.items()])
         self.cache_name = ub.hash_data(hashable, base='abc')
         self.cacher = ub.Cacher(fname=self.nice_name,
                                 cfgstr=self.cache_name,
                                 dpath=self.dir)
+        info_cacher = ub.Cacher(fname=self.nice_name,
+                                cfgstr='info',
+                                dpath=self.dir)
+        info_cacher.save(hashable)
         self.location = self.cacher.get_fpath()
 
-    def train(self):
+    def train(self, n_epochs=None):
+        """ Called once, to train model over the number of defined epochs
+        """
         self.status = 'training'
-        for e in range(self.epochs):
-            self.epoch = e
+        if n_epochs is not None:
+            self.epochs = self._e + n_epochs
+        while self._e < self.epochs:
+            self._e += 1
             for i, data in enumerate(self.loaders['train']):
                 batch_stats_dict = self.forward(data)
 
-                self.log_it(batch_stats_dict)
+                self.log_it(batch_stats_dict, partition='train')
 
                 self.backward(batch_stats_dict['loss'])
 
@@ -124,14 +141,94 @@ class NetworkSystem(object):
         """
         raise NotImplementedError
 
-    def on_epoch(self):
-        # TODO Handle all caching logic here, not in the network
-        for k in self.sequential_log.keys():
-            self.sequential_log[k] /= self.batch_size
+    # TODO test
+    @property
+    def last_metrics(self):
+        """ Returns most recent journal entries for each trackable metric as a
+            dictionary
+        """
+        return {k: v[self._e] for k, v in self.journal.items()}
 
-        self.model.on_epoch(epoch=self.epoch,
-                            loss=self.sequential_log['loss_val'][self.epoch],
-                            error=self.sequential_log['error_val'][self.epoch])
+    def epoch_summary(self, precision=5):
+        # TODO implement
+        summary = 'Epoch {}:'.format(self._e)
+        max_width = max([len(k) for k in self.journal.keys()])
+        header = ' | '.join('{:max_width}'
+        # TODO start here
+        return
+
+    # TODO test
+    def _scale_last_journal_entry(self):
+        """ Iterates through journal metrics and divides by batch size to make
+            comparisons across loader batch sizes easier
+            NOTE: This may not work if batch loading is not used
+        """
+        for k in self.journal.keys():
+            self.journal[k][self._e] /= self.loaders['train'].batch_size
+
+    # TODO test
+    def _check_model_improved(self):
+        """ Checks to see if the model has improved since last epoch
+        """
+
+        # The model is considered to have improved if:
+        if self.best_metrics is None:
+
+            # a) It is being trained for the first time
+            model_improved = True
+        else:
+
+            # b) Its last selection metric is lower than the previous best
+            model_improved = self.last_metrics[self.selection_metric] < \
+                self.best_metrics[self.selection_metric]
+        return model_improved
+
+    def on_model_improved(self):
+        """ What should the system do if the model has improved?
+        """
+        self.best_metrics = self.last_metrics()
+        self.save_model()
+
+    def on_epoch(self):
+        """ Actions to take on each epoch
+        """
+        # If we're scaling each journal entry, do so now
+        if self.scale_metrics:
+            self._scale_last_journal_entry()
+
+        # If model has improved, take requisite actions
+        if self._check_model_improved():
+            self.on_model_improved()
+
+    def save(self, metrics=None):
+        """ Save model parameters and some useful training information for
+            future training or testing
+        """
+        if metrics is None:
+            metrics = self.best_metrics
+        cache_data = {'model': self.model.state_dict(),
+                      'metrics': metrics,
+                      'epoch': self._e}
+
+        if self._v > 0:
+            key_str = ', '.join(list(cache_data.keys()))
+            print('Saving {}:\n  {}'.format(self.nice_name, key_str))
+
+        self.cacher.save(cache_data)
+
+    def load(self):
+        """ Load a previously-saved model and information to resume training or
+            testing
+        """
+        if self._v > 0:
+            print('Attempting cache load at {}'.format(self.location))
+        cache_data = self.cacher.try_load()
+        if cache_data:
+            self.best_metrics = cache_data['metrics']
+            self._e = cache_data['epoch']
+            self.model = self.model.load_state_dict(cache_data['model'])
+        else:
+            print('No cache data found!')
 
     def backward(self, loss):
         """ Analog to the torch backward method - backpropagation
