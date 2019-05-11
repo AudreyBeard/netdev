@@ -1,7 +1,33 @@
 import collections
 from warnings import warn
+import torch.no_grad
 # TODO
-# [ ] refactor check_constraints to match what is in youtill, since that is more well-though-out
+# [ ] refactor check_constraints to match what is in youtill, since
+# that is more well-though-out
+
+
+__all__ = [
+    'no_grad_if_testing',
+    'deprecated',
+    'isiterable',
+    'check_constraints',
+    'ParameterRegister',
+]
+
+
+class no_grad_if_testing(torch.no_grad):
+    def __enter__(self, status):
+        self.status = status
+        if self.status == 'testing':
+            super().__enter__()
+
+        return
+
+    def __exit__(self, *args):
+        if self.status == 'testing':
+            super().__exit__(*args)
+
+        return False
 
 
 def deprecated(f):

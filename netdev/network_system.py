@@ -73,7 +73,7 @@ class NetworkSystem(object):
         self.cacher = None
         self.location = None
         self.status = None
-        self._e = -1
+        self.epoch = -1
 
         # Keep a tensor for tracking required metrics
         self.journal = {k: torch.zeros(self.epochs) for k in metrics}
@@ -114,13 +114,18 @@ class NetworkSystem(object):
         """ Called once, to train model over the number of defined epochs
         """
         self.status = 'training'
+
         if n_epochs is not None:
-            self.epochs = self._e + n_epochs
-        while self._e < self.epochs:
-            self._e += 1
+            self.epochs = self.epoch + n_epochs
+
+        while self.epoch < self.epochs:
+            self.epoch += 1
             for i, data in enumerate(self.loaders['train']):
+
+                # Feed forward
                 batch_stats_dict = self.forward(data)
 
+                # Log requisite information
                 self.log_it(batch_stats_dict, partition='train')
 
                 self.backward(batch_stats_dict['loss'])

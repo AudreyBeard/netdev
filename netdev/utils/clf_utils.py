@@ -1,5 +1,10 @@
 import torch
 
+__all__ = [
+    'to_onehot',
+    'clf_error',
+]
+
 
 def to_onehot(vec, n_classes=10):
     if n_classes is None:
@@ -11,7 +16,7 @@ def to_onehot(vec, n_classes=10):
     return onehot
 
 
-def compute_error(y_pred, y_true):
+def clf_error(y_pred, y_true):
     y_pred = y_pred.to('cpu')
     y_true = y_true.to('cpu')
     wrong = y_pred != y_true
