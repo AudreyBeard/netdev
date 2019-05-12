@@ -124,13 +124,20 @@ class NetworkSystem(object):
         self.location = self.cacher.get_fpath()
 
     def train(self, n_epochs=None):
-        self._t_total = time.time()
+        """ Main training loop
+            Iterates over training data to feed forward, log metrics, and
+            backpropagate. Iterates over validation for metric logging and
+            (probably) model selection
+        """
+        # Training time
+        t_total = time.time()
 
+        # If given a set number of epochs, override the one given in __init__
         if n_epochs is not None:
             self.epochs = self.epoch + n_epochs
 
-        while self.epoch < self.epochs:
-            self._t_epoch = time.time()
+        while self.epoch < (self.epochs - 1):
+            t_epoch = time.time()
             self.epoch += 1
 
             self.status = 'train'
@@ -140,19 +147,22 @@ class NetworkSystem(object):
                 batch_stats_dict = self.forward(data)
 
                 # Log requisite information
-                self.log_it(partition='train', to_log=batch_stats_dict)
+                self.log_it(partition=self.status, to_log=batch_stats_dict)
 
+                # Backpropagate
                 self.backward(batch_stats_dict['loss'])
 
             self.status = 'val'
             for i, data in enumerate(self.loaders['val']):
                 with torch.no_grad():
-                    loss_dict_val = self.forward(data)
-                    self.log_it(partition='val', to_log=loss_dict_val)
+                    batch_stats_dict = self.forward(data)
+                    self.log_it(partition=self.status, to_log=batch_stats_dict)
 
-            self.time_epoch = time.time() - self._t_epoch
+            self.time_epoch = time.time() - t_epoch
             self.on_epoch()
-        self.time_total = time.time() - self._t_total
+
+        self.time_total = time.time() - t_total
+        self.on_train()
         return
 
     def forward(self, data):
@@ -167,14 +177,6 @@ class NetworkSystem(object):
         """
         raise NotImplementedError
 
-    def forward_val(self, data):
-        """ Called during self.train()
-            This exists in case of very special actions that must be taken
-            during validation, that otherwise couldn't (or shouldn't) be
-            handled with an if-statement
-        """
-        return self.forward(data)
-
     # TODO test
     @property
     def last_metrics(self):
@@ -184,17 +186,20 @@ class NetworkSystem(object):
         return {k: v[self.epoch] for k, v in self.journal.items()}
 
     # TODO test
-    def epoch_summary(self, precision=5):
+    def epoch_summary(self, precision=5, metrics=None, t=None):
         def fmt_key(string, width):
             return '{0:{width}}'.format(string, width=width)
 
         def fmt_val(number, precision, width):
             return '{0:{width}.{precision}g}'.format(number, precision=precision, width=width)
 
-        summary = 'Epoch {} ({:d} seconds):\n'.format(self.epoch, int(self.time_epoch))
-        max_width = max([len(k) for k in self.journal.keys()])
-        max_width = max(max_width, precision)
-        metrics = self.last_metrics
+        if metrics is None:
+            metrics = self.last_metrics
+
+        if t is None:
+            t = self.time_epoch
+
+        summary = 'Epoch {} ({:d} seconds):\n'.format(self.epoch, int(t))
         summary += ' | '.join([fmt_key(k, max(precision, len(k)))
                               for k in metrics.keys()])
         summary += '\n'
@@ -215,7 +220,7 @@ class NetworkSystem(object):
             self.journal[k][self.epoch] /= len(self.loaders['train'])
 
     # TODO test
-    def _check_model_improved(self):
+    def _check_set_model_improved(self):
         """ Checks to see if the model has improved since last epoch
         """
 
@@ -246,8 +251,14 @@ class NetworkSystem(object):
         print(self.epoch_summary())
 
         # If model has improved, take requisite actions
-        if self._check_model_improved():
+        if self._check_set_model_improved():
             self.on_model_improved()
+
+    def on_train(self):
+        """ Actions to take when done training
+        """
+        print('Done training')
+        print(self.epoch_summary(precision=5, metrics=self.best_metrics, t=self.time_total))
 
     def save_model(self):
         """ Save model parameters and some useful training information for
