@@ -7,6 +7,8 @@ from .utils.general_utils import ParameterRegister
 # [x] caching
 # [ ] epoch_summary()
 
+__all__ = ['NetworkSystem']
+
 
 class NetworkSystem(object):
     def __init__(self, verbosity=1, epochs=1, work_dir='./models',

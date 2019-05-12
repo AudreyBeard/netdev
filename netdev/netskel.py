@@ -14,6 +14,8 @@ from .utils.general_utils import ParameterRegister
 import ubelt as ub
 from collections import Iterable
 
+__all__ = ['NetworkSkeleton']
+
 
 class NetworkSkeleton(nn.Module):
     def __init__(self, **kwargs):

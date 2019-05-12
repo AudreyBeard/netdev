@@ -1,6 +1,6 @@
 import collections
 from warnings import warn
-import torch.no_grad
+from torch import no_grad
 # TODO
 # [ ] refactor check_constraints to match what is in youtill, since
 # that is more well-though-out
@@ -15,7 +15,7 @@ __all__ = [
 ]
 
 
-class no_grad_if(torch.no_grad):
+class no_grad_if(no_grad):
     def __enter__(self, status):
         self.status = status
         if self.status:

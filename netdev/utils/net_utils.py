@@ -1,6 +1,9 @@
 from numpy import prod
-from general_utils import deprecated
 import torch
+
+from .general_utils import deprecated
+
+__all__ = ['shape_for_shape']
 
 
 def shape_for_shape(shape_a, dim_b1, ndims=2):
