@@ -173,8 +173,8 @@ class NetworkSystem(object):
         def fmt_key(string, width):
             return '{0:{width}}'.format(string, width=width)
 
-        def fmt_val(number, precision):
-            return '{0:.{precision}g}'.format(number, precision=precision)
+        def fmt_val(number, precision, width):
+            return '{0:{width}.{precision}g}'.format(number, precision=precision, width=width)
 
         # TODO implement
         summary = 'Epoch {}:\n'.format(self.epoch)
@@ -183,7 +183,7 @@ class NetworkSystem(object):
         metrics = self.last_metrics
         summary += ' | '.join([fmt_key(k, max_width) for k in metrics.keys()])
         summary += '\n'
-        summary += ' | '.join([fmt_val(v, max_width) for v in metrics.values()])
+        summary += ' | '.join([fmt_val(v, precision, max_width) for v in metrics.values()])
         summary += '\n'
         return summary
 
