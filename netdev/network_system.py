@@ -215,7 +215,7 @@ class NetworkSystem(object):
     def on_model_improved(self):
         """ What should the system do if the model has improved?
         """
-        self.best_metrics = self.last_metrics()
+        self.best_metrics = self.last_metrics
         self.save_model()
 
     def on_epoch(self):
