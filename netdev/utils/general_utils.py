@@ -16,8 +16,10 @@ __all__ = [
 
 
 class no_grad_if(no_grad):
-    def __enter__(self, status):
+    def __init__(self, status):
         self.status = status
+
+    def __enter__(self):
         if self.status:
             super().__enter__()
 
