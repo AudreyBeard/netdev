@@ -127,7 +127,7 @@ class NetworkSystem(object):
                 batch_stats_dict = self.forward(data)
 
                 # Log requisite information
-                self.log_it(batch_stats_dict, partition='train')
+                self.log_it(partition='train', to_log=batch_stats_dict)
 
                 self.backward(batch_stats_dict['loss'])
 
@@ -135,7 +135,7 @@ class NetworkSystem(object):
             for i, data in enumerate(self.loaders['val']):
                 with torch.no_grad():
                     loss_dict_val = self.forward(data)
-                    self.log_it(loss_dict_val, partition='val')
+                    self.log_it(partition='val', to_log=loss_dict_val)
 
             self.on_epoch()
         return
@@ -266,9 +266,9 @@ class NetworkSystem(object):
         loss.backward()
         self.optimizer.step()
 
-    def log_it(self, partition='train', **kwargs):
+    def log_it(self, to_log=dict(), partition='train'):
         suffix = '_' + partition if partition else ''
-        for k, v in kwargs.items():
+        for k, v in to_log.items():
             self.sequential_log[k + suffix][self.epoch] += v
 
     def test(self):
