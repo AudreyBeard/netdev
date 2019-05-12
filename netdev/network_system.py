@@ -269,7 +269,7 @@ class NetworkSystem(object):
     def log_it(self, to_log=dict(), partition='train'):
         suffix = '_' + partition if partition else ''
         for k, v in to_log.items():
-            self.sequential_log[k + suffix][self.epoch] += v
+            self.journal[k + suffix][self.epoch] += v
 
     def test(self):
         self.status = 'test'
