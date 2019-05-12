@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
     long_description = fh.read()
 
 setup(name='netdev',
-      version='0.0.0',
+      version='0.0.1',
       description='A collection of tools to make neural network development faster, easier, and more readable',
       long_description=long_description,
       author='Joshua Beard',
@@ -17,5 +17,6 @@ setup(name='netdev',
                         'torchvision'],
       url='https://github.com/JoshuaBeard/netdev',
       changelog={'0.0.0': 'Beta',
+                 '0.0.1': 'New training network system'
                  }
       )
