@@ -9,10 +9,12 @@
 # [ ] Implement initializer
 # [x] Figure out better network instantiation:
 
-from torch import nn
-from .utils.general_utils import ParameterRegister
-import ubelt as ub
 from collections import Iterable
+
+from torch import nn
+import ubelt as ub
+
+from .utils.general_utils import ParameterRegister
 
 __all__ = ['NetworkSkeleton']
 
