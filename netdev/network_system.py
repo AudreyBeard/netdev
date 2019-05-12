@@ -194,7 +194,8 @@ class NetworkSystem(object):
             NOTE: This may not work if batch loading is not used
         """
         for k in self.journal.keys():
-            self.journal[k][self.epoch] /= self.loaders['train'].batch_size
+            self.journal[k][self.epoch] /= \
+                (self.loaders['train'].batch_size * len(self.loaders['train']))
 
     # TODO test
     def _check_model_improved(self):
