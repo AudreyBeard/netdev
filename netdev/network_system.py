@@ -1,11 +1,15 @@
 #from collections import Iterable
+import time
+
 import ubelt as ub
 import torch
+
 from .utils.general_utils import ParameterRegister
 # TODO:
 # [ ] logging
 # [x] caching
-# [ ] epoch_summary()
+# [x] epoch_summary()
+# [ ] fix cacher cfgstr initialization to not be reliant on memory address
 
 __all__ = ['NetworkSystem']
 
@@ -13,8 +17,7 @@ __all__ = ['NetworkSystem']
 class NetworkSystem(object):
     def __init__(self, verbosity=1, epochs=1, work_dir='./models',
                  device='cpu', hash_on=None, nice_name='untitled',
-                 batch_size=1, reset=False, scale_metrics=True,
-                 selection_metric='error_val',
+                 reset=False, scale_metrics=True, selection_metric='error_val',
                  metrics=['loss_train', 'error_train', 'loss_val', 'error_val'],
                  **kwargs):
 
@@ -66,7 +69,6 @@ class NetworkSystem(object):
         self.dir = work_dir
         self.device = device
         self.nice_name = nice_name
-        self.batch_size = batch_size
         self.scale_metrics = scale_metrics
 
         self.cache_name = None
@@ -74,6 +76,8 @@ class NetworkSystem(object):
         self.location = None
         self.status = None
         self.epoch = -1
+        self.time_epoch = -1
+        self.time_total = -1
 
         # Keep a tensor for tracking required metrics
         self.journal = {k: torch.zeros(self.epochs) for k in metrics}
@@ -88,6 +92,10 @@ class NetworkSystem(object):
             self.init_cacher(hash_on=self.modules)
 
         # Attach all passed-in parameters to the system
+        if self._v > 0:
+            print('{} initialized:\n  '.format(self.__class__.__name__), end='')
+            print('\n  '.join(['{}: {}'.format(k, v)
+                              for k, v in self.modules.items()]))
         for k, v in self.modules.items():
             self.__setattr__(k, v)
 
@@ -96,6 +104,10 @@ class NetworkSystem(object):
 
         return
 
+    # TODO this needs to be reformatted, since the current implementation uses
+    # the __repr__ for each class, which sometimes defaults to a class's memory
+    # address, which is changes on different executions, regardless of
+    # parameters
     def init_cacher(self, hash_on=dict()):
         """ Initialize cacher for saving and loading models
         """
@@ -103,21 +115,22 @@ class NetworkSystem(object):
         self.cache_name = ub.hash_data(hashable, base='abc')
         self.cacher = ub.Cacher(fname=self.nice_name,
                                 cfgstr=self.cache_name,
-                                dpath=self.dir)
-        info_cacher = ub.Cacher(fname=self.nice_name,
-                                cfgstr='info',
-                                dpath=self.dir)
+                                dpath=self.dir,
+                                verbose=max(self._v - 1, 0))
+        info_cacher = ub.Cacher(fname=self.nice_name + '_info',
+                                dpath=self.dir,
+                                verbose=max(self._v - 1, 0))
         info_cacher.save(hashable)
         self.location = self.cacher.get_fpath()
 
     def train(self, n_epochs=None):
-        """ Called once, to train model over the number of defined epochs
-        """
+        self._t_total = time.time()
 
         if n_epochs is not None:
             self.epochs = self.epoch + n_epochs
 
         while self.epoch < self.epochs:
+            self._t_epoch = time.time()
             self.epoch += 1
 
             self.status = 'train'
@@ -137,7 +150,9 @@ class NetworkSystem(object):
                     loss_dict_val = self.forward(data)
                     self.log_it(partition='val', to_log=loss_dict_val)
 
+            self.time_epoch = time.time() - self._t_epoch
             self.on_epoch()
+        self.time_total = time.time() - self._t_total
         return
 
     def forward(self, data):
@@ -176,14 +191,15 @@ class NetworkSystem(object):
         def fmt_val(number, precision, width):
             return '{0:{width}.{precision}g}'.format(number, precision=precision, width=width)
 
-        # TODO implement
-        summary = 'Epoch {}:\n'.format(self.epoch)
+        summary = 'Epoch {} ({:d} seconds):\n'.format(self.epoch, int(self.time_epoch))
         max_width = max([len(k) for k in self.journal.keys()])
         max_width = max(max_width, precision)
         metrics = self.last_metrics
-        summary += ' | '.join([fmt_key(k, max_width) for k in metrics.keys()])
+        summary += ' | '.join([fmt_key(k, max(precision, len(k)))
+                              for k in metrics.keys()])
         summary += '\n'
-        summary += ' | '.join([fmt_val(v, precision, max_width) for v in metrics.values()])
+        summary += ' | '.join([fmt_val(v, precision, max(precision, len(k)))
+                              for k, v in metrics.items()])
         summary += '\n'
         return summary
 
@@ -194,8 +210,9 @@ class NetworkSystem(object):
             NOTE: This may not work if batch loading is not used
         """
         for k in self.journal.keys():
-            self.journal[k][self.epoch] /= \
-                (self.loaders['train'].batch_size * len(self.loaders['train']))
+            # self.journal[k][self.epoch] /= \
+            #     (self.loaders['train'].batch_size * len(self.loaders['train']))
+            self.journal[k][self.epoch] /= len(self.loaders['train'])
 
     # TODO test
     def _check_model_improved(self):
@@ -242,7 +259,7 @@ class NetworkSystem(object):
 
         if self._v > 0:
             key_str = ', '.join(list(cache_data.keys()))
-            print('Saving {}:\n  {}'.format(self.nice_name, key_str))
+            print('Saving {} ({})'.format(self.nice_name, key_str))
 
         self.cacher.save(cache_data)
 
