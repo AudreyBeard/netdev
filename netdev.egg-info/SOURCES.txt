@@ -1,7 +1,7 @@
 README.md
 netdev/__init__.py
-netdev/netschool.py
 netdev/netskel.py
+netdev/network_system.py
 netdev.egg-info/PKG-INFO
 netdev.egg-info/SOURCES.txt
 netdev.egg-info/dependency_links.txt
