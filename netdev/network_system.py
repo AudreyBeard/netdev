@@ -269,7 +269,9 @@ class NetworkSystem(object):
     def log_it(self, to_log=dict(), partition='train'):
         suffix = '_' + partition if partition else ''
         for k, v in to_log.items():
-            self.journal[k + suffix][self.epoch] += v
+            # Make sure item is in journal
+            if self.journal.get(k + suffix) is not None:
+                self.journal[k + suffix][self.epoch] += v
 
     def test(self):
         self.status = 'test'
