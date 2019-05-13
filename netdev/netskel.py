@@ -42,7 +42,7 @@ class NetworkSkeleton(nn.Module):
                            'work_dir': str,
                            'initializer': lambda x: x is None or isinstance(x, str),
                            'reset': bool,
-                           'models_dpath': str,  # TODO deprecated, right?
+                           'no_cache': bool,
                            }
             constraints.update(self.constraints)
         except AttributeError:
@@ -59,7 +59,7 @@ class NetworkSkeleton(nn.Module):
                         'work_dir': '.',
                         'initializer': None,
                         'reset': False,
-                        'models_dpath': './models',  # TODO deprecated, right?
+                        'no_cache': False,
                         }
             defaults.update(self.defaults)
         except AttributeError:
@@ -91,20 +91,25 @@ class NetworkSkeleton(nn.Module):
         self.hyperparams.unset('reset')
         self.hyperparams.unset('work_dir')
 
-        self._cache_name = ub.hash_data(self.hyperparams.hashable_str, base='abc')
-        self._cacher = ub.Cacher(fname=self.hyperparams['nice_name'],
-                                 cfgstr=self._cache_name,
-                                 dpath=self._work_dir)
-        self._cacher_params = ub.Cacher(fname=self.hyperparams['nice_name'] + '_params',
-                                        cfgstr=self._cache_name,
-                                        dpath=self._work_dir)
+        if self.hyperparams['no_cache']:
+            self._cache_name = None
+            self._cacher = None
+            self._cacher_params = None
+
+        else:
+            self._cache_name = ub.hash_data(self.hyperparams.hashable_str, base='abc')
+            self._cacher = ub.Cacher(fname=self.hyperparams['nice_name'],
+                                     cfgstr=self._cache_name,
+                                     dpath=self._work_dir)
+            self._cacher_params = ub.Cacher(fname=self.hyperparams['nice_name'] + '_params',
+                                            cfgstr=self._cache_name,
+                                            dpath=self._work_dir)
+            if self._v > 0:
+                print('Cache location: {}'.format(self._cacher.get_fpath()))
 
         self._best_val_error = None
         self._best_loss = None
         self.epoch = None
-
-        if self._v > 0:
-            print('Cache location: {}'.format(self._cacher.get_fpath()))
 
     def parameters(self):
         """Parameters, necessary for torch's training methodology
@@ -119,7 +124,8 @@ class NetworkSkeleton(nn.Module):
         return super().to(device)
 
     def on_epoch(self, epoch=None, error=None, loss=None):
-        """All operations to be performed at the end of an epoch
+        """ All operations to be performed at the end of an epoch
+            This is deprecated with NetworkSystem
         """
         assert loss is not None
         if epoch is None:
