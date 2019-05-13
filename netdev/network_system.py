@@ -97,7 +97,11 @@ class NetworkSystem(object):
             print('\n  '.join(['{}: {}'.format(k, v)
                               for k, v in self.modules.items()]))
         for k, v in self.modules.items():
-            self.__setattr__(k, v)
+            # Move to specified device, if applicable
+            try:
+                self.__setattr__(k, v.to(self.device))
+            except AttributeError:
+                self.__setattr__(k, v)
 
         if reset:
             self.load()
