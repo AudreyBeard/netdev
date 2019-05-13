@@ -4,7 +4,7 @@ import time
 import ubelt as ub
 import torch
 
-from .utils.general_utils import ParameterRegister
+from .utils.general_utils import ParameterRegister, pretty_print
 # TODO:
 # [ ] logging
 # [x] caching
@@ -78,6 +78,7 @@ class NetworkSystem(object):
         self.epoch = -1
         self.time_epoch = -1
         self.time_total = -1
+        self._hash_on = hash_on
 
         # Keep a tensor for tracking required metrics
         self.journal = {k: torch.zeros(self.epochs) for k in metrics}
@@ -85,17 +86,13 @@ class NetworkSystem(object):
         self.best_metrics = None
 
         # If user specified parameters to use for hash cfgstr, use them
-        if hash_on is not None:
-            self.init_cacher(hash_on=hash_on)
-        # Default: hash on modules
-        else:
-            self.init_cacher(hash_on=self.modules)
+        self.init_cacher(hash_on=self.hash_on)
 
         # Attach all passed-in parameters to the system
         if self._v > 0:
-            print('{} initialized:\n  '.format(self.__class__.__name__), end='')
-            print('\n  '.join(['{}: {}'.format(k, v)
-                              for k, v in self.modules.items()]))
+            print('Initialized ', end='')
+            print(self)
+
         for k, v in self.modules.items():
             self.__setattr__(k, v)
 
@@ -104,12 +101,26 @@ class NetworkSystem(object):
 
         return
 
+    @property
+    def hash_on(self):
+        if self._hash_on:
+            return self._hash_on
+        else:
+            return dict(self.modules.items())
+
+    def __repr__(self):
+        rep = '<{}> {}\n  '.format(self.__class__.__name__, self.nice_name)
+        rep += '\n  '.join(['{}: {}'.format(k, pretty_print(v, len(k) + 2))
+                            for k, v in self.hash_on.items()])
+        return rep
+
     # TODO this needs to be reformatted, since the current implementation uses
     # the __repr__ for each class, which sometimes defaults to a class's memory
     # address, which is changes on different executions, regardless of
     # parameters
     def init_cacher(self, hash_on=dict()):
         """ Initialize cacher for saving and loading models
+            The cachers don't need to be loud, so we just suppress them somewhat
         """
         hashable = '_'.join(['{}:{}; '.format(k, v) for k, v in hash_on.items()])
         self.cache_name = ub.hash_data(hashable, base='abc')
