@@ -122,13 +122,14 @@ class NetworkSystem(object):
         """ Initialize cacher for saving and loading models
             The cachers don't need to be loud, so we just suppress them somewhat
         """
-        hashable = '_'.join(['{}:{}; '.format(k, v) for k, v in hash_on.items()])
+        hashable = '{' + '_'.join(['{}:{}; '.format(k, v) for k, v in hash_on.items()]) + '}'
         self.cache_name = ub.hash_data(hashable, base='abc')
         self.cacher = ub.Cacher(fname=self.nice_name,
                                 cfgstr=self.cache_name,
                                 dpath=self.dir,
                                 verbose=max(self._v - 1, 0))
-        info_cacher = ub.Cacher(fname=self.nice_name + '_info',
+        info_cacher = ub.Cacher(fname=self.nice_name + '_config',
+                                cfgstr='string',
                                 dpath=self.dir,
                                 verbose=max(self._v - 1, 0))
         info_cacher.save(hashable)
