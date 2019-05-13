@@ -12,7 +12,14 @@ __all__ = [
     'isiterable',
     'check_constraints',
     'ParameterRegister',
+    'pretty_print',
 ]
+
+
+def pretty_print(thing, base_indent, nested_indent=2):
+    thing_string = thing.__repr__()
+    thing_string = ('\n' + ' ' * (base_indent + nested_indent)).join(thing_string.split('\n'))
+    return thing_string
 
 
 class no_grad_if(no_grad):
@@ -174,18 +181,18 @@ def check_parameter(param_value, param_name, valid_options_dict):
 class ParameterRegister(collections.OrderedDict):
     def __init__(self, constraints=None, defaults=None):
         super().__init__()
-        self.constraints = constraints
-        self.defaults = defaults
+        self._constraints = constraints
+        self._defaults = defaults
 
     def register(self, kwarg_name, constraints=None, default=None):
-        self.constraints[kwarg_name] = constraints
-        self.defaults[kwarg_name] = default
+        self._constraints[kwarg_name] = constraints
+        self._defaults[kwarg_name] = default
 
     def unregister(self, kwarg):
         if kwarg in self.keys():
             del self[kwarg]
-            del self.constraints[kwarg]
-            del self.defaults[kwarg]
+            del self._constraints[kwarg]
+            del self._defaults[kwarg]
 
     def unset(self, kwarg):
         if kwarg in self.keys():
@@ -193,8 +200,14 @@ class ParameterRegister(collections.OrderedDict):
 
     def check_kwargs(self, **kwargs):
         (check_parameter(kwargs[key], key, self) for key in kwargs)
-        valid = {k: check_constraints(v, k, self.constraints) for k, v in kwargs.items()}
+        valid = {k: check_constraints(v, k, self._constraints) for k, v in kwargs.items()}
         return valid
+
+    def __getattr__(self, attr):
+        try:
+            return super().__getattr__(attr)
+        except AttributeError:
+            return self[attr]
 
     @property
     def bad_param_string(self, **kwargs):
@@ -209,7 +222,7 @@ class ParameterRegister(collections.OrderedDict):
             bad_string = ''
             for k, v in valid.items():
                 if not v:
-                    bad_string += fmt(k, self.constraints, kwargs[k])
+                    bad_string += fmt(k, self._constraints, kwargs[k])
         else:
             bad_string = None
 
@@ -223,21 +236,24 @@ class ParameterRegister(collections.OrderedDict):
         """
         valid = self.check_kwargs(**kwargs)
         if not all(valid.values()):
-            rc = '; '.join(['{}: expects {}, got {}'.format(k, self.constraints[k], kwargs[k]) for k, v in valid if not v])
+            ec = '; '.join(['{}: expects {}, got {}'.format(k,
+                                                            self._constraints[k],
+                                                            kwargs[k])
+                            for k, v in valid if not v])
+            raise ValueError(ec)
         else:
             for k, v in sorted(kwargs.items()):
                 self[k] = v
-            rc = None
-        return rc
+            return None
 
     def set_uninitialized_params(self, defaults=None):
         if defaults is not None:
             defaults_notset = {key: defaults[key]
                                for key in defaults
                                if self.get(key) is None}
-        elif self.defaults is not None:
-            defaults_notset = {key: self.defaults[key]
-                               for key in self.defaults
+        elif self._defaults is not None:
+            defaults_notset = {key: self._defaults[key]
+                               for key in self._defaults
                                if self.get(key) is None}
         else:
             print('No defaults dictionary given - cannot set')
