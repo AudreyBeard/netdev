@@ -42,7 +42,7 @@ class NetworkSkeleton(nn.Module):
                            'work_dir': str,
                            'initializer': lambda x: x is None or isinstance(x, str),
                            'reset': bool,
-                           'cacheable': bool,
+                           'no_cache': bool,
                            }
             constraints.update(self.constraints)
         except AttributeError:
@@ -59,7 +59,7 @@ class NetworkSkeleton(nn.Module):
                         'work_dir': '.',
                         'initializer': None,
                         'reset': False,
-                        'cacheable': True,
+                        'no_cache': False,
                         }
             defaults.update(self.defaults)
         except AttributeError:
@@ -91,7 +91,12 @@ class NetworkSkeleton(nn.Module):
         self.hyperparams.unset('reset')
         self.hyperparams.unset('work_dir')
 
-        if self.hyperparams['cacheable']:
+        if self.hyperparams['no_cache']:
+            self._cache_name = None
+            self._cacher = None
+            self._cacher_params = None
+
+        else:
             self._cache_name = ub.hash_data(self.hyperparams.hashable_str, base='abc')
             self._cacher = ub.Cacher(fname=self.hyperparams['nice_name'],
                                      cfgstr=self._cache_name,
@@ -101,11 +106,6 @@ class NetworkSkeleton(nn.Module):
                                             dpath=self._work_dir)
             if self._v > 0:
                 print('Cache location: {}'.format(self._cacher.get_fpath()))
-
-        else:
-            self._cache_name = None
-            self._cacher = None
-            self._cacher_params = None
 
         self._best_val_error = None
         self._best_loss = None
