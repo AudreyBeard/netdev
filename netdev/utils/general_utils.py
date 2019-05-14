@@ -12,13 +12,32 @@ __all__ = [
     'isiterable',
     'check_constraints',
     'ParameterRegister',
-    'pretty_print',
+    'pretty_repr',
 ]
 
 
-def pretty_print(thing, base_indent, nested_indent=2):
-    thing_string = thing.__repr__()
+def pretty_repr(thing, base_indent=0, nested_indent=2, indent_first=True):
+    """ Returns a better-formatted __repr__ for easier-to-read diagnostic messages
+        Parameters:
+            - thing: any object to print
+            - base_indent (int): number of spaces to prepend to each line of
+              string-representation of thing
+            - nested_indent (int): number of spaces to append to each newline
+              of string-representation of thing
+            - indent_first (bool): Whether to prepend base_indent to first line
+              of string, turn this off if you want to put first line on same
+              line as another string of length base_indent
+        Returns:
+            - (str): properly-indented thing.__repr__() (or thing if type(thing) == str)
+    """
+    if isinstance(thing, str):
+        thing_string = thing
+    else:
+        thing_string = thing.__repr__()
+
     thing_string = ('\n' + ' ' * (base_indent + nested_indent)).join(thing_string.split('\n'))
+    if indent_first:
+        thing_string = ' ' * base_indent + thing_string
     return thing_string
 
 
