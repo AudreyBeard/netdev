@@ -13,7 +13,7 @@ from .utils.general_utils import ParameterRegister, pretty_repr
 #     - The way I'm handling this now is by specifying hash_on - There should
 #       be a more robust way of handling this
 
-__all__ = ['NetworkSystem']
+__all__ = ['NetworkSystem', 'ClassificationSystem']
 
 
 class NetworkSystem(object):
