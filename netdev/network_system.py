@@ -4,12 +4,14 @@ import time
 import ubelt as ub
 import torch
 
-from .utils.general_utils import ParameterRegister, pretty_print
+from .utils.general_utils import ParameterRegister, pretty_repr
 # TODO:
 # [ ] logging
 # [x] caching
 # [x] epoch_summary()
 # [ ] fix cacher cfgstr initialization to not be reliant on memory address
+#     - The way I'm handling this now is by specifying hash_on - There should
+#       be a more robust way of handling this
 
 __all__ = ['NetworkSystem']
 
@@ -29,6 +31,7 @@ class NetworkSystem(object):
             should therefore be used in differentiating between different
             models when saving.
         """
+
         # These define some important items that impact the model
         try:
             constraints = {
@@ -113,8 +116,10 @@ class NetworkSystem(object):
             return dict(self.modules.items())
 
     def __repr__(self):
+        def fmt(s, w):
+            return pretty_repr(s, base_indent=w, indent_first=False)
         rep = '<{}> {}\n  '.format(self.__class__.__name__, self.nice_name)
-        rep += '\n  '.join(['{}: {}'.format(k, pretty_print(v, len(k) + 2))
+        rep += '\n  '.join(['{}: {}'.format(k, fmt(v, len(k) + 2))
                             for k, v in self.hash_on.items()])
         return rep
 
@@ -168,6 +173,7 @@ class NetworkSystem(object):
                 # Backpropagate
                 self.backward(batch_stats_dict['loss'])
 
+            # Validation
             self.status = 'val'
             for i, data in enumerate(self.loaders['val']):
                 with torch.no_grad():
@@ -221,7 +227,6 @@ class NetworkSystem(object):
         summary += '\n'
         summary += ' | '.join([fmt_val(v, precision, max(precision, len(k)))
                               for k, v in metrics.items()])
-        summary += '\n'
         return summary
 
     # TODO test
@@ -264,7 +269,7 @@ class NetworkSystem(object):
         if self.scale_metrics:
             self._scale_last_journal_entry()
 
-        print(self.epoch_summary())
+        print(pretty_repr(self.epoch_summary(), indent_first=False))
 
         # If model has improved, take requisite actions
         if self._check_set_model_improved():
@@ -286,7 +291,7 @@ class NetworkSystem(object):
 
         if self._v > 0:
             key_str = ', '.join(list(cache_data.keys()))
-            print('Saving {} ({})'.format(self.nice_name, key_str))
+            print('  Saving {} ({})'.format(self.nice_name, key_str))
 
         self.cacher.save(cache_data)
 
