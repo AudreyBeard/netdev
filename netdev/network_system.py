@@ -331,3 +331,27 @@ class NetworkSystem(object):
     def reset(self):
         # TODO implement this
         raise NotImplementedError
+
+
+class ClassificationSystem(NetworkSystem):
+    def forward(self, data):
+        inputs, labels = data
+        inputs = inputs.to(self.device)
+        labels = labels.to(self.device)
+
+        outputs = self.model(inputs)
+        loss = self.objective(outputs, labels)
+
+        error = self.compute_error(outputs, labels)
+
+        loss_dict = {
+            'loss': loss,
+            'error': error,
+        }
+
+        return loss_dict
+
+    def compute_error(self, outputs, labels):
+        prediction = outputs.argmax(dim=1)
+        error = (prediction != labels).float().sum() / labels.shape[0]
+        return error
