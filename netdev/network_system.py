@@ -76,9 +76,9 @@ class NetworkSystem(object):
 
         self.cache_name = None
         self.cacher = None
-        self.location = None
         self.status = None
         self.epoch = -1
+        self.best_epoch = -1
         self.time_epoch = -1
         self.time_total = -1
         self._hash_on = hash_on
@@ -142,7 +142,13 @@ class NetworkSystem(object):
                                 dpath=self.dir,
                                 verbose=max(self._v - 1, 0))
         info_cacher.save(hashable)
-        self.location = self.cacher.get_fpath()
+
+    @property
+    def location(self):
+        if self.cacher is None:
+            return None
+        else:
+            return self.cacher.get_fpath()
 
     def train(self, n_epochs=None):
         """ Main training loop
@@ -260,6 +266,7 @@ class NetworkSystem(object):
         """ What should the system do if the model has improved?
         """
         self.best_metrics = self.last_metrics
+        self.best_epoch = self.epoch
         self.save_model()
 
     def on_epoch(self):
@@ -287,7 +294,10 @@ class NetworkSystem(object):
         """
         cache_data = {'model': self.model.state_dict(),
                       'journal': self.journal,
-                      'epoch': self.epoch}
+                      'epoch': self.epoch,
+                      'best_metrics': self.best_metrics,
+                      'best_epoch': self.best_epoch,
+                      }
 
         if self._v > 0:
             key_str = ', '.join(list(cache_data.keys()))
@@ -295,19 +305,60 @@ class NetworkSystem(object):
 
         self.cacher.save(cache_data)
 
-    def load(self):
+    def load(self, nice_name=None, verbosity=1):
         """ Load a previously-saved model and information to resume training or
-            testing
+            testing.
+            Note, this systems's model must be the same model as was saved
         """
-        if self._v > 0:
-            print('Attempting cache load at {}'.format(self.location))
-        cache_data = self.cacher.try_load()
-        if cache_data:
-            self.journal = cache_data['journal']
-            self.epoch = cache_data['epoch']
-            self.model = self.model.load_state_dict(cache_data['model'])
+
+        # If nice_name is not given, fall back to originally-given nice name
+        if nice_name is None:
+            nice_name = self.nice_name
+
+        # Try to get the original hashable string
+        info_cacher = ub.Cacher(fname=nice_name + '_config',
+                                cfgstr='string',
+                                dpath=self.dir,
+                                verbose=max(verbosity - 1, 0))
+        orig_hashable_str = info_cacher.tryload()
+
+        if not orig_hashable_str:
+            if verbosity > 0:
+                print('No configuration data found at {}'.format(info_cacher.get_fpath()))
+                print('Falling back on system metadata')
+            cacher = self.cacher
+
         else:
+            if verbosity > 0:
+                print('Found hashable configuration string at:\n  {}\n  {}'
+                      .format(info_cacher.get_fpath(), orig_hashable_str))
+                print('Instantiating new cacher')
+
+            cache_name = ub.hash_data(orig_hashable_str, base='abc')
+            cacher = ub.Cacher(fname=nice_name,
+                               cfgstr=self.cache_name,
+                               dpath=self.dir,
+                               verbose=max(verbosity - 1, 0))
+
+        # Try to load from whatever cacher we're using
+        if verbosity > 0:
+            print('Attempting cache load at {}'.format(cacher.get_fpath()))
+        cache_data = cacher.tryload()
+
+        if not cache_data:
             print('No cache data found!')
+        else:
+            print('Cache data found, loading data now...', end='')
+            self.cache_name = cache_name
+            self.cacher = cacher
+            self.nice_name = nice_name
+            self.journal = cache_data.get('journal')
+            self.epoch = cache_data.get('epoch')
+            self.epochs = cache_data.get('epoch')
+            self.best_metrics = cache_data.get('best_metrics')
+            self.best_epoch = cache_data.get('best_epoch')
+            self.model = self.model.load_state_dict(cache_data['model'])
+            print(' done')
 
     def backward(self, loss):
         """ Analog to the torch backward method - backpropagation
