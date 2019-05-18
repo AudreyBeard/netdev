@@ -89,7 +89,7 @@ class NetworkSystem(object):
         self.best_metrics = None
 
         # If user specified parameters to use for hash cfgstr, use them
-        self.init_cacher(hash_on=self.hash_on)
+        self.init_cacher(self.hash_on)
 
         # Attach all passed-in parameters to the system
         if self._v > 0:
@@ -115,6 +115,10 @@ class NetworkSystem(object):
         else:
             return dict(self.modules.items())
 
+    @hash_on.setter
+    def hash_on(self, hash_on):
+        self._hash_on = hash_on
+
     def __repr__(self):
         def fmt(s, w):
             return pretty_repr(s, base_indent=w, indent_first=False)
@@ -127,7 +131,7 @@ class NetworkSystem(object):
     # the __repr__ for each class, which sometimes defaults to a class's memory
     # address, which is changes on different executions, regardless of
     # parameters
-    def init_cacher(self, hash_on=dict()):
+    def init_cacher(self, hash_on):
         """ Initialize cacher for saving and loading models
             The cachers don't need to be loud, so we just suppress them somewhat
         """
@@ -150,6 +154,30 @@ class NetworkSystem(object):
         else:
             return self.cacher.get_fpath()
 
+    def single_epoch_train(self):
+        """ Training steps for a single epoch
+        """
+        self.status = 'train'
+        for i, data in enumerate(self.loaders['train']):
+
+            # Feed forward
+            batch_stats_dict = self.forward(data)
+
+            # Log requisite information
+            self.log_it(partition=self.status, to_log=batch_stats_dict)
+
+            # Backpropagate
+            self.backward(batch_stats_dict['loss'])
+
+    def single_epoch_val(self):
+        """ Validation steps for a single epoch
+        """
+        self.status = 'val'
+        for i, data in enumerate(self.loaders['val']):
+            with torch.no_grad():
+                batch_stats_dict = self.forward(data)
+                self.log_it(partition=self.status, to_log=batch_stats_dict)
+
     def train(self, n_epochs=None):
         """ Main training loop
             Iterates over training data to feed forward, log metrics, and
@@ -162,29 +190,15 @@ class NetworkSystem(object):
         # If given a set number of epochs, override the one given in __init__
         if n_epochs is not None:
             self.epochs = self.epoch + n_epochs
+            self.journal = {k: torch.cat((v, torch.zeros(self.epochs)))
+                            for k, v in self.journal.items()}
 
         while self.epoch < (self.epochs - 1):
             t_epoch = time.time()
             self.epoch += 1
 
-            self.status = 'train'
-            for i, data in enumerate(self.loaders['train']):
-
-                # Feed forward
-                batch_stats_dict = self.forward(data)
-
-                # Log requisite information
-                self.log_it(partition=self.status, to_log=batch_stats_dict)
-
-                # Backpropagate
-                self.backward(batch_stats_dict['loss'])
-
-            # Validation
-            self.status = 'val'
-            for i, data in enumerate(self.loaders['val']):
-                with torch.no_grad():
-                    batch_stats_dict = self.forward(data)
-                    self.log_it(partition=self.status, to_log=batch_stats_dict)
+            self.single_epoch_train()
+            self.single_epoch_val()
 
             self.time_epoch = time.time() - t_epoch
             self.on_epoch()
@@ -272,6 +286,7 @@ class NetworkSystem(object):
     def on_epoch(self):
         """ Actions to take on each epoch
         """
+        self.status = 'on_epoch'
         # If we're scaling each journal entry, do so now
         if self.scale_metrics:
             self._scale_last_journal_entry()
@@ -357,8 +372,10 @@ class NetworkSystem(object):
             self.epochs = cache_data.get('epoch')
             self.best_metrics = cache_data.get('best_metrics')
             self.best_epoch = cache_data.get('best_epoch')
-            self.model = self.model.load_state_dict(cache_data['model'])
+            self.model.load_state_dict(cache_data['model'])
             print(' done')
+
+        return cache_data is not None
 
     def backward(self, loss):
         """ Analog to the torch backward method - backpropagation

@@ -86,12 +86,14 @@ class NetworkSkeleton(nn.Module):
         self._v = self.hyperparams['verbosity']
         self._reset = self.hyperparams['reset']
         self._work_dir = self.hyperparams['work_dir']
+        self.no_cache = self.hyperparams['no_cache']
 
         self.hyperparams.unset('verbosity')
         self.hyperparams.unset('reset')
         self.hyperparams.unset('work_dir')
+        self.hyperparams.unset('no_cache')
 
-        if self.hyperparams['no_cache']:
+        if self.no_cache:
             self._cache_name = None
             self._cacher = None
             self._cacher_params = None
@@ -161,6 +163,9 @@ class NetworkSkeleton(nn.Module):
             same hyperparameters. If no model is found with the same cache
             name, this is a no-op
         """
+        if self.no_cache:
+            return
+
         if self._v > 0:
             print("Attempting cache load at {}".format(self._cacher.get_fpath()))
         data = self._cacher.tryload()
