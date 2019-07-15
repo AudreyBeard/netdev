@@ -1,4 +1,5 @@
 README.md
+setup.py
 netdev/__init__.py
 netdev/netskel.py
 netdev/network_system.py
