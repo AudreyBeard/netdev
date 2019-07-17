@@ -7,7 +7,9 @@ import torch
 from .utils.general_utils import ParameterRegister, pretty_repr
 # TODO:
 # [ ] logging
-# [x] caching
+# [ ] caching
+#     [x] First pass with ubelt 
+#     [ ] Implement my own for fewer dependencies
 # [x] epoch_summary()
 # [ ] fix cacher cfgstr initialization to not be reliant on memory address
 #     - The way I'm handling this now is by specifying hash_on - There should
