@@ -6,12 +6,9 @@ class Miner():
     """ Mines data for the hardest pairs in a subset of data
         To be called in training loop.
     """
-    def __init__(self, input_size, model=None, positive_ratio=0.5, device=None, objective=None):
+    def __init__(self, model=None, positive_ratio=0.5, device=None, objective=None):
         """
             Parameters:
-                input_size (tuple, list, np.ndarray, etc.) shape of the input
-                    to the network, ignoring any batching or number of
-                    candidates (e.g. (3, 256, 256) for a square RGB image)
                 model: any callable object that produces something to put into
                     the objective function
                 positive_ratio (float): ratio of postive samples with respect
@@ -30,7 +27,6 @@ class Miner():
         self.model = model
         self.objective = objective
         self.r_p = positive_ratio
-        self.in_size = input_size
         return
 
     def mine(self, inputs_anc=None, labels_anc=None, inputs_pos=None, inputs_neg=None, labels_neg=None):
