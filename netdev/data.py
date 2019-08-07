@@ -2,7 +2,7 @@ import torch
 from utils import rand_select_n
 
 
-class Miner():
+class LabeledMiner(object):
     """ Mines data for the hardest pairs in a subset of data
         To be called in training loop.
     """

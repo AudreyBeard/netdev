@@ -1,6 +1,7 @@
 #from collections import Iterable
 import time
 
+import tqdm.tqdm
 import ubelt as ub
 import torch
 
@@ -77,6 +78,7 @@ class NetworkSystem(object):
         self.cache_name = None
         self.cacher = None
         self.status = None
+        self.training = False
         self.epoch = -1
         self.best_epoch = -1
         self.time_epoch = -1
@@ -158,6 +160,8 @@ class NetworkSystem(object):
         """ Training steps for a single epoch
         """
         self.status = 'train'
+        self.training = True
+        self.model.training = True
         for i, data in enumerate(self.loaders['train']):
 
             # Feed forward
@@ -193,7 +197,9 @@ class NetworkSystem(object):
             self.journal = {k: torch.cat((v, torch.zeros(self.epochs)))
                             for k, v in self.journal.items()}
 
-        while self.epoch < (self.epochs - 1):
+        #while self.epoch < (self.epochs - 1):
+        n_epochs_to_execute = self.epochs - self.epoch - 1
+        for _ in tqdm(range(0, n_epochs_to_execute)):
             t_epoch = time.time()
             self.epoch += 1
 
@@ -393,6 +399,8 @@ class NetworkSystem(object):
 
     def test(self):
         self.status = 'test'
+        self.training = False
+        self.model.training = False
         # TODO should I implement the skeleton of this?
         raise NotImplementedError
 
