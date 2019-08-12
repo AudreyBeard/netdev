@@ -1,6 +1,9 @@
 import collections
 from warnings import warn
+
 from torch import no_grad
+import torch
+import np
 # TODO
 # [ ] refactor check_constraints to match what is in youtill, since
 # that is more well-though-out
@@ -18,7 +21,7 @@ __all__ = [
     'seed_rng'
 ]
 
-  
+
 def seed_rng(seed=None):
     """ Seeds numpy and torch
     """
@@ -121,7 +124,7 @@ def deprecated(f):
         For use, see examples/deprecated.py
     """
     def deprec_warn():
-        deprecation_msg = f'{f.__name__} is deprecated - consider replacing it'  # NOQA
+        deprecation_msg = '{} is deprecated - consider replacing it'.format(f.__name__)
         warn(deprecation_msg)
         f()
     return deprec_warn
@@ -194,7 +197,7 @@ def check_constraints(param_value, param_name, constraints):
                     for opstr, op in op_dict.items()]  # For all operations given
                 is_valid = all(correct_or_dontcare)
             else:
-                 is_valid = c.lower() == item.lower() if isinstance(item, str) else False
+                is_valid = c.lower() == item.lower() if isinstance(item, str) else False
 
             return is_valid
 
@@ -232,15 +235,15 @@ def check_constraints(param_value, param_name, constraints):
             if not t and constraint[i] is not None
         ]
         # Make sure it's the correct type and value if specified
-        is_good = ((any(correct_type) or 
-                    len(correct_type) == 0) and 
-                   (any(correct_value) or
+        is_good = ((any(correct_type) or            # NOQA
+                    len(correct_type) == 0) and     # NOQA
+                   (any(correct_value) or           # NOQA
                     len(correct_value) == 0))
         return is_good
         #return all([_check_constraint(param_value, c, param_name) for c in constraint])
 
     else:
-        return _check_constraint(param_value, constraint, param_name) or c is None
+        return _check_constraint(param_value, constraint, param_name) or constraint is None
 
 
 @deprecated
