@@ -3,7 +3,7 @@ from warnings import warn
 
 from torch import no_grad
 import torch
-import np
+import numpy as np
 # TODO
 # [ ] refactor check_constraints to match what is in youtill, since
 # that is more well-though-out
