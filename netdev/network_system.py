@@ -177,6 +177,7 @@ class NetworkSystem(object):
         """ Validation steps for a single epoch
         """
         self.status = 'val'
+        self.training = False
         for i, data in enumerate(self.loaders['val']):
             with torch.no_grad():
                 batch_stats_dict = self.forward(data)
