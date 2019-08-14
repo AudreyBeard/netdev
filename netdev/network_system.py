@@ -1,7 +1,7 @@
 #from collections import Iterable
 import time
 
-import tqdm.tqdm
+from tqdm import tqdm
 import ubelt as ub
 import torch
 
