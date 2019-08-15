@@ -4,7 +4,11 @@ import time
 from tqdm import tqdm
 import ubelt as ub
 import torch
-import tensorboard_logger
+try:
+    import tensorboard_logger
+    tensorboard = True
+except ImportError:
+    tensorboard = False
 
 from .utils.general_utils import ParameterRegister, pretty_repr, Cache
 # TODO:
@@ -112,9 +116,10 @@ class NetworkSystem(object):
         if not reset:
             self.load()
 
-        tensorboard_logger.configure(self.cache.fpath('logs'), flush_secs=5)
-        print("Start up a tensorboard server with the following command:")
-        print("  tensorboard --logdir {}".format(self.cache.fpath("logs")))
+        if tensorboard:
+            tensorboard_logger.configure(self.cache.fpath('logs'), flush_secs=5)
+            print("Start up a tensorboard server with the following command:")
+            print("  tensorboard --logdir {}".format(self.cache.fpath("logs")))
 
         return
 
@@ -315,18 +320,19 @@ class NetworkSystem(object):
         if self.scale_metrics:
             self._scale_last_journal_entry()
 
-        print(pretty_repr(self.epoch_summary(), indent_first=False))
+        if tensorboard:
+            for metric in sorted(self.journal):
+                tensorboard_logger.log_value(
+                    metric,
+                    self.journal[metric][self.epoch],
+                    self.epoch
+                )
+        else:
+            print(pretty_repr(self.epoch_summary(), indent_first=False))
 
         # If model has improved, take requisite actions
         if self._check_set_model_improved():
             self.on_model_improved()
-
-        for metric in sorted(self.journal):
-            tensorboard_logger.log_value(
-                metric,
-                self.journal[metric][self.epoch],
-                self.epoch
-            )
 
     def on_train(self):
         """ Actions to take when done training
