@@ -150,7 +150,7 @@ class NetworkSystem(object):
         """ Initialize cacher for saving and loading models
             The cachers don't need to be loud, so we just suppress them somewhat
         """
-        hashable = '{' + '_'.join(['{}:{}; '.format(k, hash_on[k]) for k in sorted(hash_on)]) + '}'
+        hashable = '{' + '___'.join(['{}:{};'.format(k, hash_on[k]) for k in sorted(hash_on)]) + '}'
         self.cache_name = ub.hash_data(hashable, base='abc')
         self.cacher = ub.Cacher(fname=self.nice_name,
                                 cfgstr=self.cache_name,
