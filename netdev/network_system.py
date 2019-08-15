@@ -113,11 +113,18 @@ class NetworkSystem(object):
             self.load()
 
         tensorboard_logger.configure(self.cache.fpath('logs'), flush_secs=5)
+        print("Start up a tensorboard server with the following command:")
+        print("  tensorboard --logdir {}".format(self.cache.fpath("logs")))
 
         return
 
     @property
     def hash_on(self):
+        """ Returns a dictionary of keys and values from which we create a
+            unique hash. If self._hash_on is set, return that. Otherwise, fall
+            back to set of user-defined properties that control behavior of
+            model
+        """
         if self._hash_on:
             return self._hash_on
         else:
@@ -313,6 +320,13 @@ class NetworkSystem(object):
         # If model has improved, take requisite actions
         if self._check_set_model_improved():
             self.on_model_improved()
+
+        for metric in sorted(self.journal):
+            tensorboard_logger.log_value(
+                metric,
+                self.journal[metric][self.epoch],
+                self.epoch
+            )
 
     def on_train(self):
         """ Actions to take when done training
