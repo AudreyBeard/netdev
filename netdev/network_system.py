@@ -4,8 +4,9 @@ import time
 from tqdm import tqdm
 import ubelt as ub
 import torch
+from tensorboard_logger import configure, log_value
 
-from .utils.general_utils import ParameterRegister, pretty_repr
+from .utils.general_utils import ParameterRegister, pretty_repr, Cache
 # TODO:
 # [ ] logging
 # [ ] caching
@@ -77,6 +78,7 @@ class NetworkSystem(object):
         self.nice_name = nice_name
         self.scale_metrics = scale_metrics
 
+        self.cache = None
         self.cache_name = None
         self.cacher = None
         self.status = None
@@ -139,7 +141,7 @@ class NetworkSystem(object):
         """ Initialize cacher for saving and loading models
             The cachers don't need to be loud, so we just suppress them somewhat
         """
-        hashable = '{' + '_'.join(['{}:{}; '.format(k, v) for k, v in hash_on.items()]) + '}'
+        hashable = '{' + '_'.join(['{}:{}; '.format(k, hash_on[k]) for k in sorted(hash_on)]) + '}'
         self.cache_name = ub.hash_data(hashable, base='abc')
         self.cacher = ub.Cacher(fname=self.nice_name,
                                 cfgstr=self.cache_name,
@@ -151,8 +153,12 @@ class NetworkSystem(object):
                                 verbose=max(self._v - 1, 0))
         info_cacher.save(hashable)
 
+        self.cache = Cache(self.dir, self._v - 1)
+        self.cache.write_str(hashable, "hash-on_string.txt")
+
     @property
     def location(self):
+        # TODO implement this with self.cache
         if self.cacher is None:
             return None
         else:
@@ -327,6 +333,7 @@ class NetworkSystem(object):
             key_str = ', '.join(list(cache_data.keys()))
             print('  Saving {} ({})'.format(self.nice_name, key_str))
 
+        # TODO implement this with self.cache
         self.cacher.save(cache_data)
 
     def load(self, nice_name=None, verbosity=1):
