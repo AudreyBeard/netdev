@@ -250,10 +250,10 @@ class NetworkSystem(object):
 
         summary = 'Epoch {} ({:d} seconds):\n'.format(self.epoch, int(t))
         summary += ' | '.join([fmt_key(k, max(precision, len(k)))
-                              for k in metrics.keys()])
+                              for k in sorted(metrics)])
         summary += '\n'
-        summary += ' | '.join([fmt_val(v, precision, max(precision, len(k)))
-                              for k, v in metrics.items()])
+        summary += ' | '.join([fmt_val(metrics[k], precision, max(precision, len(k)))
+                              for k in sorted(metrics)])
         return summary
 
     # TODO test
