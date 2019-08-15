@@ -1,6 +1,9 @@
 import collections
 from warnings import warn
+
 from torch import no_grad
+import torch
+import numpy as np
 # TODO
 # [ ] refactor check_constraints to match what is in youtill, since
 # that is more well-though-out
@@ -13,7 +16,61 @@ __all__ = [
     'check_constraints',
     'ParameterRegister',
     'pretty_repr',
+    'rand_select',
+    'rand_select_n',
+    'seed_rng'
 ]
+
+
+def seed_rng(seed=None):
+    """ Seeds numpy and torch
+    """
+    if seed is not None:
+        np.random.seed(seed)
+        torch.manual_seed(seed)
+
+
+def rand_select(tensor, exclude=None, do_squeeze=True):
+    """ Randomly selects one item from the given tensor
+    """
+    index = torch.randint(tensor.size()[0], (1, 1))
+    selection = tensor[index]
+
+    # If we want to exclude certain values, grab a different one (rolls backwards)
+    if exclude is not None:
+        selection = tensor[index - 1]
+
+    if do_squeeze:
+        return selection.squeeze()
+    else:
+        return selection
+
+
+def rand_select_n(tensor, n_samples=1):
+    """ Randomly choose some number of samples from an input tensor.
+        If n_samples > len(tensor), output will contain duplicates. If so,
+        items from tensor will appear at most once more than any other -
+        meaning roughly equal representation.
+    """
+    def choicemax(t, n):
+        """ Helper function that samples as many as possible
+        """
+        return np.random.choice(t, min(n, t.size()[0]), replace=False)
+
+    #try:
+    #    selection = np.random.choice(tensor, size=n_samples, replace=False)
+    #except ValueError:
+
+    # Grab as many samples as possible, up to n_samples
+    selection = choicemax(tensor, n_samples)
+
+    # If selection is too small, add to it until it's large enough
+    while selection.shape[0] < n_samples:
+        selection = np.concatenate((selection,
+                                    choicemax(tensor, n_samples - selection.shape[0])))
+
+    # Cast as a tensor of correct type
+    return torch.Tensor(selection).type(tensor.dtype)
 
 
 def pretty_repr(thing, base_indent=0, nested_indent=2, indent_first=True):
@@ -42,6 +99,8 @@ def pretty_repr(thing, base_indent=0, nested_indent=2, indent_first=True):
 
 
 class no_grad_if(no_grad):
+    """ Context manager that turns off gradient computations if initial condition is true
+    """
     def __init__(self, status):
         self.status = status
 
@@ -65,7 +124,7 @@ def deprecated(f):
         For use, see examples/deprecated.py
     """
     def deprec_warn():
-        deprecation_msg = '{} is deprecated - consider replacing it'.format(f.__name__)  # NOQA
+        deprecation_msg = '{} is deprecated - consider replacing it'.format(f.__name__)
         warn(deprecation_msg)
         f()
     return deprec_warn
@@ -86,18 +145,14 @@ def check_constraints(param_value, param_name, constraints):
             bool: whether the param_value is properly constrained
         Example:
             >>> v = dict(s=('a', 'b', None), n=(float, int, None))
-            >>> check_parameter('a', 's', v)
-            >>> try:
-            ...     check_parameter(1, 's', v)
-            ... except ValueError:
-            ...     print("'b' is not a valid value for s")
-            'b' is not a valid value for s
-            >>> check_parameter(1, 'n', v)
-            >>> try:
-            ...     check_parameter('a', 'n', v)
-            ... except ValueError:
-            ...     print("'s' is not a valid value for n")
-            's' is not a valid value for n
+            >>> check_constraints('a', 's', v)
+            True
+            >>> check_constraints(1, 's', v)
+            False
+            >>> check_constraints(1, 'n', v)
+            True
+            >>> check_constraints('a', 'n', v)
+            False
     """
 
     def _check_constraint(item, c, item_name=None):
@@ -117,7 +172,7 @@ def check_constraints(param_value, param_name, constraints):
 
     # No constraint
         if c is None:
-            return True
+            return item is None
 
     # Constrained by type
         elif type(c) == type or c == collections.Iterable:
@@ -133,11 +188,18 @@ def check_constraints(param_value, param_name, constraints):
             op_dict['>'] = lambda x, y: x > y
             op_dict['<'] = lambda x, y: x < y
 
-            correct_or_dontcare = [op(item, _getval(c, opstr))        # Check operation
-                                   if _isop(c, opstr)                 # Only if operation is constraint
-                                   else True                          # OTW, don't care
-                                   for opstr, op in op_dict.items()]  # For all operations given
-            return all(correct_or_dontcare)
+            is_op = any([_isop(c, opstr) for opstr in op_dict.keys()])
+            if is_op:
+                correct_or_dontcare = [
+                    op(item, _getval(c, opstr))        # Check operation
+                    if _isop(c, opstr)                 # Only if operation is constraint
+                    else True                          # OTW, don't care
+                    for opstr, op in op_dict.items()]  # For all operations given
+                is_valid = all(correct_or_dontcare)
+            else:
+                is_valid = c.lower() == item.lower() if isinstance(item, str) else False
+
+            return is_valid
 
         # If constraint is, for instance, a lambda function verifying that a
         # parameter is either None or satisfies some other constraint
@@ -152,13 +214,36 @@ def check_constraints(param_value, param_name, constraints):
 
     # First get the actual constraint(s)
     constraint = constraints.get(param_name)
+    #import ipdb
+    #ipdb.set_trace()
 
     # If multiple constraints, check all of them
     if isiterable(constraint):
-        return all([_check_constraint(param_value, c, param_name) for c in constraint])
+        # Mark all constraints that specify types (except None) - these
+        # requirements are mutually exclusive
+        is_type = [isinstance(c, type) and c is not None for c in constraint]
+        # Check all parameters
+        checked = [_check_constraint(param_value, c, param_name) for c in constraint]
+        # Is this item one of the specified types?
+        correct_type = [
+            v for v, t in zip(checked, is_type) if t
+        ]
+        # Is this item of the specified values?
+        correct_value = [
+            v
+            for i, (v, t) in enumerate(zip(checked, is_type))
+            if not t and constraint[i] is not None
+        ]
+        # Make sure it's the correct type and value if specified
+        is_good = ((any(correct_type) or            # NOQA
+                    len(correct_type) == 0) and     # NOQA
+                   (any(correct_value) or           # NOQA
+                    len(correct_value) == 0))
+        return is_good
+        #return all([_check_constraint(param_value, c, param_name) for c in constraint])
 
     else:
-        return _check_constraint(param_value, constraint, param_name)
+        return _check_constraint(param_value, constraint, param_name) or constraint is None
 
 
 @deprecated
@@ -218,7 +303,7 @@ class ParameterRegister(collections.OrderedDict):
             del self[kwarg]
 
     def check_kwargs(self, **kwargs):
-        (check_parameter(kwargs[key], key, self) for key in kwargs)
+        #(check_parameter(kwargs[key], key, self) for key in kwargs)
         valid = {k: check_constraints(v, k, self._constraints) for k, v in kwargs.items()}
         return valid
 

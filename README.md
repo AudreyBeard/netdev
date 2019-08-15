@@ -14,7 +14,7 @@ Inspired by [netharn](github.com/erotemic/netharn)
     - reset
     - verbosity
  - Provides cache saving and loading built in through the
-   [ubelt](github.com/erotemic/ubelt) caching module
+   [ubelt](https://github.com/erotemic/ubelt) caching module
 
 # Modules:
 ---
