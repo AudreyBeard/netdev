@@ -199,7 +199,7 @@ class NetworkSystem(object):
                             for k, v in self.journal.items()}
 
         #while self.epoch < (self.epochs - 1):
-        n_epochs_to_execute = self.epochs - self.epoch - 1
+        n_epochs_to_execute = self.epochs - self.epoch
         for _ in tqdm(range(0, n_epochs_to_execute)):
             t_epoch = time.time()
             self.epoch += 1
