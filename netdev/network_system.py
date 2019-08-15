@@ -15,7 +15,8 @@ from .utils.general_utils import ParameterRegister, pretty_repr, Cache
 # [ ] logging
 # [ ] caching
 #     [x] First pass with ubelt
-#     [ ] Implement my own for fewer dependencies
+#     [x] Implement my own for fewer dependencies
+#     [ ] Eliminate dependency on ubelt
 # [x] epoch_summary()
 # [ ] fix cacher cfgstr initialization to not be reliant on memory address
 #     - The way I'm handling this now is by specifying hash_on - There should
@@ -168,7 +169,7 @@ class NetworkSystem(object):
         info_cacher.save(hashable)
 
         self.cache = Cache(self.dir, self._v - 1)
-        self.cache.write_str(hashable, "hash-on_string.txt")
+        self.cache.write_str(hashable, "{}_hash-on_string.txt".format(self.nice_name))
 
     @property
     def location(self):
