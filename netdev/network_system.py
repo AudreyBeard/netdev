@@ -127,8 +127,8 @@ class NetworkSystem(object):
         def fmt(s, w):
             return pretty_repr(s, base_indent=w, indent_first=False)
         rep = '<{}> {}\n  '.format(self.__class__.__name__, self.nice_name)
-        rep += '\n  '.join(['{}: {}'.format(k, fmt(v, len(k) + 2))
-                            for k, v in self.hash_on.items()])
+        rep += '\n  '.join(['{}: {}'.format(k, fmt(self.hash_on[k], len(k) + 2))
+                            for k, in sorted(self.hash_on)])
         return rep
 
     # TODO this needs to be reformatted, since the current implementation uses
