@@ -117,7 +117,7 @@ class NetworkSystem(object):
             self.load()
 
         if tensorboard:
-            tensorboard_logger.configure(self.cache.fpath('logs'), flush_secs=5)
+            tensorboard_logger.configure(self.cache.fpath('logs/{}'.format(self.nice_name)), flush_secs=5)
             print("Start up a tensorboard server with the following command:")
             print("  tensorboard --logdir {}".format(self.cache.fpath("logs")))
 
