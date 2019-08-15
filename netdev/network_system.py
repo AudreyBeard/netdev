@@ -4,7 +4,7 @@ import time
 from tqdm import tqdm
 import ubelt as ub
 import torch
-from tensorboard_logger import configure, log_value
+import tensorboard_logger
 
 from .utils.general_utils import ParameterRegister, pretty_repr, Cache
 # TODO:
@@ -109,8 +109,10 @@ class NetworkSystem(object):
             except AttributeError:
                 self.__setattr__(k, v)
 
-        if reset:
+        if not reset:
             self.load()
+
+        tensorboard_logger.configure(self.cache.fpath('logs'), flush_secs=5)
 
         return
 
@@ -335,6 +337,19 @@ class NetworkSystem(object):
 
         # TODO implement this with self.cache
         self.cacher.save(cache_data)
+
+        # This is faster than pickling
+        torch.save(cache_data, self.checkpoint_name)
+
+    @property
+    def checkpoint_name(self, **kwargs):
+        # TODO extend this
+        name = self.__class__.__name__
+        name += "_E={}".format(self.epoch)
+        for k in sorted(kwargs):
+            name += "_{}".format(k)
+            name += "={}".format(kwargs[k]) if kwargs[k] is not True and kwargs[k] is not False else ''
+        return name
 
     def load(self, nice_name=None, verbosity=1):
         """ Load a previously-saved model and information to resume training or
