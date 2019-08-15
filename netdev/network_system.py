@@ -9,7 +9,7 @@ from .utils.general_utils import ParameterRegister, pretty_repr
 # TODO:
 # [ ] logging
 # [ ] caching
-#     [x] First pass with ubelt 
+#     [x] First pass with ubelt
 #     [ ] Implement my own for fewer dependencies
 # [x] epoch_summary()
 # [ ] fix cacher cfgstr initialization to not be reliant on memory address
