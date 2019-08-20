@@ -29,6 +29,7 @@ class NetworkSystem(object):
     def __init__(self, verbosity=1, epochs=1, work_dir='./models',
                  device='cpu', hash_on=None, nice_name='untitled',
                  reset=False, scale_metrics=True, selection_metric='error_val',
+                 eval_val_every=10,
                  metrics=['loss_train', 'error_train', 'loss_val', 'error_val'],
                  **kwargs):
 
@@ -82,6 +83,7 @@ class NetworkSystem(object):
         self.device = device
         self.nice_name = nice_name
         self.scale_metrics = scale_metrics
+        self.eval_val_every = eval_val_every
 
         self.cache = None
         self.cache_name = None
@@ -228,7 +230,8 @@ class NetworkSystem(object):
             self.epoch += 1
 
             self.single_epoch_train()
-            self.single_epoch_val()
+            if self.epoch % self.eval_val_every == 0:
+                self.single_epoch_val()
 
             self.time_epoch = time.time() - t_epoch
             self.on_epoch()
@@ -317,6 +320,7 @@ class NetworkSystem(object):
         """ Actions to take on each epoch
         """
         self.status = 'on_epoch'
+        self.training = False
         # If we're scaling each journal entry, do so now
         if self.scale_metrics:
             self._scale_last_journal_entry()
