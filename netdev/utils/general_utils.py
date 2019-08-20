@@ -1,5 +1,8 @@
 import collections
 from warnings import warn
+import os
+import shutil
+import pickle
 
 from torch import no_grad
 import torch
@@ -367,6 +370,139 @@ class ParameterRegister(collections.OrderedDict):
     @property
     def hashable_str(self):
         return ','.join(['{}:{}'.format(k, v) for k, v in self.items()])
+
+
+class Cache(object):
+    """ Simple caching mechanism
+    """
+    def __init__(self, dpath='~/.cache/actions', verbosity=1):
+        """
+            Example:
+                >>> self = Cache()
+                >>> os.path.exists(self.dpath)
+                True
+        """
+        self.verbosity = verbosity
+
+        # Expand variables and store this path
+        self.dpath = os.path.realpath(
+            os.path.expanduser(
+                os.path.expandvars(dpath)))
+        if not os.path.exists(self.dpath):
+            os.mkdir(self.dpath)
+            if self.verbosity > 0:
+                print("[cache] Init at {} - created".format(self.dpath))
+        elif self.verbosity > 0:
+            print("[cache] Init at {}".format(self.dpath))
+
+    def exists(self, fname=''):
+        """
+            Example:
+                >>> self = Cache()
+                >>> self.exists()
+                True
+                >>> self.exists('TEST_FILE_THAT_SHOULD_NOT_EXIST')
+                False
+        """
+        found = os.path.exists(self.fpath(fname))
+        if self.verbosity > 0:
+            if found:
+                print("[cache] {} found".format(fname))
+            else:
+                print("[cache] {} NOT found".format(fname))
+        return found
+
+    def fpath(self, fname):
+        """
+            Example:
+                >>> self = Cache()
+                >>> dpath, fname = os.path.split(self.fpath('test'))
+                >>> assert dpath == self.dpath
+                >>> assert fname == 'test'
+        """
+        return os.path.join(self.dpath, fname)
+
+    def pickle(self, item, fname):
+        """
+            Example:
+                >>> self = Cache()
+                >>> test_dict = {'a':-1, 'b':0, 'c':1}
+                >>> self.pickle(test_dict, 'test_dict.pkl')
+                >>> os.path.exists(self.fpath('test_dict.pkl'))
+                True
+        """
+        # If cache path is given for some reason:
+        if os.path.split(fname)[0] == self.dpath:
+            fname = os.path.split(fname)[1]
+
+        if self.verbosity > 0:
+            print("[cache] pickling {} . . . ".format(fname), end='')
+
+        with open(self.fpath(fname), 'wb') as fid:
+            pickle.dump(item, fid)
+
+        print("DONE")
+
+    def unpickle(self, fname):
+        """
+            Example:
+                >>> self = Cache()
+                >>> test_dict = {'a':-1, 'b':0, 'c':1}
+                >>> self.pickle(test_dict, 'test_dict.pkl')
+                >>> test_dict_unpickled = self.unpickle('test_dict.pkl')
+                >>> assert len(test_dict) == len(test_dict_unpickled)
+                >>> assert all([v1 == v2
+                ...            for v1, v2 in zip(
+                ...                test_dict.values(),
+                ...                test_dict_unpickled.values())])
+        """
+        # If cache path is given for some reason:
+        if os.path.split(fname)[0] == self.dpath:
+            fname = os.path.split(fname)[1]
+
+        if not self.exists(fname):
+            item = None
+        else:
+            if self.verbosity > 0:
+                print("[cache] unpickling {} . . . ".format(fname), end='')
+
+            with open(self.fpath(fname), 'rb') as fid:
+                item = pickle.load(fid)
+
+            if self.verbosity > 0:
+                print("DONE")
+
+        return item
+
+    def write_str(self, data, fname):
+        # If cache path is given for some reason:
+        if os.path.split(fname)[0] == self.dpath:
+            fname = os.path.split(fname)[1]
+        if self.verbosity > 0:
+            print("[cache] writing {}".format(fname))
+        with open(self.fpath(fname), 'w') as fid:
+            fid.write(str(data))
+
+    def cp(self, fpath_src):
+        """ Copies file to cache
+        """
+        if self.verbosity > 0:
+            print("[cache] copying {} to {}".format(fpath_src, self.dpath))
+        shutil.copy(fpath_src, self.dpath)
+
+    @property
+    def ls(self):
+        """ List contents in cache directory
+            Example:
+                >>> self = Cache()
+                >>> self.pickle({'a':1}, 'test_dict.pkl')
+                >>> assert 'test_dict.pkl' in len(self.ls())
+        """
+        return os.listdir(self.dpath)
+
+
+def TODO(msg="Implement this!"):
+    raise NotImplementedError(msg)
 
 
 if __name__ == "__main__":

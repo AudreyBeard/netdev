@@ -4,13 +4,19 @@ import time
 from tqdm import tqdm
 import ubelt as ub
 import torch
+try:
+    import tensorboard_logger
+    tensorboard = True
+except ImportError:
+    tensorboard = False
 
-from .utils.general_utils import ParameterRegister, pretty_repr
+from .utils.general_utils import ParameterRegister, pretty_repr, Cache
 # TODO:
 # [ ] logging
 # [ ] caching
 #     [x] First pass with ubelt
-#     [ ] Implement my own for fewer dependencies
+#     [x] Implement my own for fewer dependencies
+#     [ ] Eliminate dependency on ubelt
 # [x] epoch_summary()
 # [ ] fix cacher cfgstr initialization to not be reliant on memory address
 #     - The way I'm handling this now is by specifying hash_on - There should
@@ -23,6 +29,7 @@ class NetworkSystem(object):
     def __init__(self, verbosity=1, epochs=1, work_dir='./models',
                  device='cpu', hash_on=None, nice_name='untitled',
                  reset=False, scale_metrics=True, selection_metric='error_val',
+                 eval_val_every=10,
                  metrics=['loss_train', 'error_train', 'loss_val', 'error_val'],
                  **kwargs):
 
@@ -76,7 +83,9 @@ class NetworkSystem(object):
         self.device = device
         self.nice_name = nice_name
         self.scale_metrics = scale_metrics
+        self.eval_val_every = eval_val_every
 
+        self.cache = None
         self.cache_name = None
         self.cacher = None
         self.status = None
@@ -107,13 +116,23 @@ class NetworkSystem(object):
             except AttributeError:
                 self.__setattr__(k, v)
 
-        if reset:
+        if not reset:
             self.load()
+
+        if tensorboard:
+            tensorboard_logger.configure(self.cache.fpath('logs/{}'.format(self.nice_name)), flush_secs=5)
+            print("Start up a tensorboard server with the following command:")
+            print("  tensorboard --logdir {}".format(self.cache.fpath("logs")))
 
         return
 
     @property
     def hash_on(self):
+        """ Returns a dictionary of keys and values from which we create a
+            unique hash. If self._hash_on is set, return that. Otherwise, fall
+            back to set of user-defined properties that control behavior of
+            model
+        """
         if self._hash_on:
             return self._hash_on
         else:
@@ -127,8 +146,8 @@ class NetworkSystem(object):
         def fmt(s, w):
             return pretty_repr(s, base_indent=w, indent_first=False)
         rep = '<{}> {}\n  '.format(self.__class__.__name__, self.nice_name)
-        rep += '\n  '.join(['{}: {}'.format(k, fmt(v, len(k) + 2))
-                            for k, v in self.hash_on.items()])
+        rep += '\n  '.join(['{}: {}'.format(k, fmt(self.hash_on[k], len(k) + 2))
+                            for k in sorted(self.hash_on)])
         return rep
 
     # TODO this needs to be reformatted, since the current implementation uses
@@ -139,7 +158,7 @@ class NetworkSystem(object):
         """ Initialize cacher for saving and loading models
             The cachers don't need to be loud, so we just suppress them somewhat
         """
-        hashable = '{' + '_'.join(['{}:{}; '.format(k, v) for k, v in hash_on.items()]) + '}'
+        hashable = '{' + '___'.join(['{}:{};'.format(k, hash_on[k]) for k in sorted(hash_on)]) + '}'
         self.cache_name = ub.hash_data(hashable, base='abc')
         self.cacher = ub.Cacher(fname=self.nice_name,
                                 cfgstr=self.cache_name,
@@ -151,8 +170,12 @@ class NetworkSystem(object):
                                 verbose=max(self._v - 1, 0))
         info_cacher.save(hashable)
 
+        self.cache = Cache(self.dir, self._v - 1)
+        self.cache.write_str(hashable, "{}_hash-on_string.txt".format(self.nice_name))
+
     @property
     def location(self):
+        # TODO implement this with self.cache
         if self.cacher is None:
             return None
         else:
@@ -207,7 +230,8 @@ class NetworkSystem(object):
             self.epoch += 1
 
             self.single_epoch_train()
-            self.single_epoch_val()
+            if self.epoch % self.eval_val_every == 0:
+                self.single_epoch_val()
 
             self.time_epoch = time.time() - t_epoch
             self.on_epoch()
@@ -296,11 +320,20 @@ class NetworkSystem(object):
         """ Actions to take on each epoch
         """
         self.status = 'on_epoch'
+        self.training = False
         # If we're scaling each journal entry, do so now
         if self.scale_metrics:
             self._scale_last_journal_entry()
 
-        print(pretty_repr(self.epoch_summary(), indent_first=False))
+        if tensorboard:
+            for metric in sorted(self.journal):
+                tensorboard_logger.log_value(
+                    metric,
+                    self.journal[metric][self.epoch],
+                    self.epoch
+                )
+        else:
+            print(pretty_repr(self.epoch_summary(), indent_first=False))
 
         # If model has improved, take requisite actions
         if self._check_set_model_improved():
@@ -327,7 +360,21 @@ class NetworkSystem(object):
             key_str = ', '.join(list(cache_data.keys()))
             print('  Saving {} ({})'.format(self.nice_name, key_str))
 
+        # TODO implement this with self.cache
         self.cacher.save(cache_data)
+
+        # This is faster than pickling
+        torch.save(cache_data, self.checkpoint_name)
+
+    @property
+    def checkpoint_name(self, **kwargs):
+        # TODO extend this
+        name = self.__class__.__name__
+        name += "_E={}".format(self.epoch)
+        for k in sorted(kwargs):
+            name += "_{}".format(k)
+            name += "={}".format(kwargs[k]) if kwargs[k] is not True and kwargs[k] is not False else ''
+        return name
 
     def load(self, nice_name=None, verbosity=1):
         """ Load a previously-saved model and information to resume training or
