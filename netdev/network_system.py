@@ -198,6 +198,9 @@ class NetworkSystem(object):
             # Backpropagate
             self.backward(batch_stats_dict['loss'])
 
+        if tensorboard:
+            self.tensorboard_log(self.status)
+
     def single_epoch_val(self):
         """ Validation steps for a single epoch
         """
@@ -207,6 +210,22 @@ class NetworkSystem(object):
             with torch.no_grad():
                 batch_stats_dict = self.forward(data)
                 self.log_it(partition=self.status, to_log=batch_stats_dict)
+
+        if tensorboard:
+            self.tensorboard_log(self.status)
+
+    def tensorboard_log(self, partition=None):
+        if partition is not None:
+            keys = [k for k in self.journal.keys() if k.endswith(partition)]
+        else:
+            keys = list(self.journal.keys())
+
+        for metric_name in keys:
+            tensorboard_logger.log_value(
+                metric_name,
+                self.journal[metric_name][self.epoch] / len(self.loaders[partition]),
+                self.epoch
+            )
 
     def train(self, n_epochs=None):
         """ Main training loop
@@ -291,7 +310,7 @@ class NetworkSystem(object):
         for k in self.journal.keys():
             # self.journal[k][self.epoch] /= \
             #     (self.loaders['train'].batch_size * len(self.loaders['train']))
-            self.journal[k][self.epoch] /= len(self.loaders['train'])
+            self.journal[k][self.epoch] /= len(self.loaders[k.split('_')[-1]])
 
     # TODO test
     def _check_set_model_improved(self):
@@ -325,7 +344,7 @@ class NetworkSystem(object):
         if self.scale_metrics:
             self._scale_last_journal_entry()
 
-        if tensorboard:
+        if tensorboard and False:
             for metric in sorted(self.journal):
                 tensorboard_logger.log_value(
                     metric,
