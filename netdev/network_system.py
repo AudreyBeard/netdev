@@ -388,11 +388,13 @@ class NetworkSystem(object):
     @property
     def checkpoint_name(self, **kwargs):
         # TODO extend this
-        name = self.__class__.__name__
+        name = self.cache.fpath(self.__class__.__name__)
         name += "_E={}".format(self.epoch)
         for k in sorted(kwargs):
             name += "_{}".format(k)
             name += "={}".format(kwargs[k]) if kwargs[k] is not True and kwargs[k] is not False else ''
+
+        name += '.t7'
         return name
 
     def load(self, nice_name=None, verbosity=1):
