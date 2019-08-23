@@ -29,7 +29,7 @@ class NetworkSystem(object):
     def __init__(self, verbosity=1, epochs=1, work_dir='./models',
                  device='cpu', hash_on=None, nice_name='untitled',
                  reset=False, scale_metrics=True, selection_metric='error_val',
-                 eval_val_every=10,
+                 selection_metric_goal='min', eval_val_every=10,
                  metrics=['loss_train', 'error_train', 'loss_val', 'error_val'],
                  **kwargs):
 
@@ -99,6 +99,11 @@ class NetworkSystem(object):
         # Keep a tensor for tracking required metrics
         self.journal = {k: torch.zeros(self.epochs) for k in metrics}
         self.selection_metric = selection_metric
+        if selection_metric_goal.lower().startswith('min'):
+            self.is_improvement = lambda new, old: new < old
+        else:
+            self.is_improvement = lambda new, old: new > old
+
         self.best_metrics = None
 
         # If user specified parameters to use for hash cfgstr, use them
@@ -319,14 +324,12 @@ class NetworkSystem(object):
 
         # The model is considered to have improved if:
         # a) It is being trained for the first time
-        if self.best_metrics is None:
-            model_improved = True
-
         # b) Its last selection metric is lower than the previous best
-        else:
-            model_improved = self.last_metrics[self.selection_metric] < \
-                self.best_metrics[self.selection_metric]
-        return model_improved
+        improved = self.is_improvement(
+            self.last_metrics[self.selection_metric],
+            self.best_metrics[self.selection_metric]
+        ) if self.best_metrics is not None else True
+        return improved
 
     def on_model_improved(self):
         """ What should the system do if the model has improved?
