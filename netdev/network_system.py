@@ -1,5 +1,4 @@
-#from collections import Iterable
-import time
+import os
 
 from tqdm import tqdm
 import ubelt as ub
@@ -90,7 +89,7 @@ class NetworkSystem(object):
         self.cacher = None
         self.status = None
         self.training = False
-        self.epoch = -1
+        self.epoch = 0
         self.best_epoch = -1
         self.time_epoch = -1
         self.time_total = -1
@@ -175,7 +174,10 @@ class NetworkSystem(object):
                                 verbose=max(self._v - 1, 0))
         info_cacher.save(hashable)
 
-        self.cache = Cache(self.dir, self._v - 1)
+        cache_directory = os.path.join(self.dir,
+                                       self.__class__.__name__,
+                                       self.nice_name)
+        self.cache = Cache(cache_directory, self._v - 1)
         self.cache.write_str(hashable, "{}_hash-on_string.txt".format(self.nice_name))
 
     @property
@@ -191,7 +193,7 @@ class NetworkSystem(object):
         """
         self.status = 'train'
         self.training = True
-        self.model.training = True
+        self.model.train()
         for i, data in enumerate(self.loaders['train']):
 
             # Feed forward
@@ -211,6 +213,7 @@ class NetworkSystem(object):
         """
         self.status = 'val'
         self.training = False
+        self.model.eval()
         for i, data in enumerate(self.loaders['val']):
             with torch.no_grad():
                 batch_stats_dict = self.forward(data)
@@ -239,7 +242,7 @@ class NetworkSystem(object):
             (probably) model selection
         """
         # Training time
-        t_total = time.time()
+        #t_total = time.time()
 
         # If given a set number of epochs, override the one given in __init__
         if n_epochs is not None:
@@ -247,36 +250,36 @@ class NetworkSystem(object):
             self.journal = {k: torch.cat((v, torch.zeros(self.epochs)))
                             for k, v in self.journal.items()}
 
-        #while self.epoch < (self.epochs - 1):
-        n_epochs_to_execute = self.epochs - self.epoch
-        for _ in tqdm(range(0, n_epochs_to_execute)):
-            t_epoch = time.time()
-            self.epoch += 1
+        start_epoch = self.epoch
+
+        self.single_epoch_val()
+        for _ in tqdm(range(start_epoch, self.epochs)):
+            #t_epoch = time.time()
 
             self.single_epoch_train()
-            if self.epoch % self.eval_val_every == 0:
+            if self.epoch % self.eval_val_every == (self.eval_val_every - 1):
                 self.single_epoch_val()
 
-            self.time_epoch = time.time() - t_epoch
+            #self.time_epoch = time.time() - t_epoch
             self.on_epoch()
+            self.epoch += 1
 
-        self.time_total = time.time() - t_total
+        #self.time_total = time.time() - t_total
         self.on_train()
         return
 
     def forward(self, data):
         """ Analogous to the torch forward method - feed-forward component
-            Implement this in all subclasses
+            Implement this in all subclasses.
+            Should be used for training and evaluation, and may be switched on
+            self.training (bool) or self.status (str).
             Should return a dictionary with at least a 'loss' key corresponding
-            to the scalar loss value returned by self.objective
-
-            Should return a dictionary with at least a 'loss' key and whatever
+            to the scalar loss value returned by self.objective and whatever
             other keys included in self.journal, without the `_train` or
             `_val` suffixes.
         """
         raise NotImplementedError
 
-    # TODO test
     @property
     def last_metrics(self):
         """ Returns most recent journal entries for each trackable metric as a
@@ -308,13 +311,12 @@ class NetworkSystem(object):
 
     # TODO test
     def _scale_last_journal_entry(self):
-        """ Iterates through journal metrics and divides by batch size to make
+        """ Iterates through journal metrics and divides by number of batches to make
             comparisons across loader batch sizes easier
             NOTE: This may not work if batch loading is not used
+            NOTE: If the last batch is incomplete, this will yield slightly inaccurate resultss.
         """
         for k in self.journal.keys():
-            # self.journal[k][self.epoch] /= \
-            #     (self.loaders['train'].batch_size * len(self.loaders['train']))
             self.journal[k][self.epoch] /= len(self.loaders[k.split('_')[-1]])
 
     # TODO test
@@ -391,11 +393,13 @@ class NetworkSystem(object):
     @property
     def checkpoint_name(self, **kwargs):
         # TODO extend this
-        name = self.cache.fpath(self.__class__.__name__)
-        name += "_E={}".format(self.epoch)
+        name = "E={}".format(self.epoch)
         for k in sorted(kwargs):
+            # List each kwarg in order
             name += "_{}".format(k)
-            name += "={}".format(kwargs[k]) if kwargs[k] is not True and kwargs[k] is not False else ''
+            name += "={}".format(kwargs[k])
+
+        name = self.cache.fpath(name)
 
         name += '.t7'
         return name
