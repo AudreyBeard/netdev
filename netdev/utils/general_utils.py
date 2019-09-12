@@ -389,7 +389,7 @@ class Cache(object):
             os.path.expanduser(
                 os.path.expandvars(dpath)))
         if not os.path.exists(self.dpath):
-            os.mkdirs(self.dpath)
+            os.makedirs(self.dpath)
             if self.verbosity > 0:
                 print("[cache] Init at {} - created".format(self.dpath))
         elif self.verbosity > 0:
