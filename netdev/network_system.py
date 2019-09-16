@@ -96,7 +96,7 @@ class NetworkSystem(object):
         self._hash_on = hash_on
 
         # Keep a tensor for tracking required metrics
-        self.journal = {k: torch.zeros(self.epochs) for k in metrics}
+        self.journal = {k: torch.zeros(self.epochs, requires_grad=False) for k in metrics}
         self.selection_metric = selection_metric
         if selection_metric_goal.lower().startswith('min'):
             self.is_improvement = lambda new, old: new < old
@@ -124,9 +124,12 @@ class NetworkSystem(object):
             self.load()
 
         if tensorboard:
-            tensorboard_logger.configure(self.cache.fpath('logs/{}'.format(self.nice_name)), flush_secs=5)
+            tb_dir = os.path.join(os.path.split(self.cache.dpath)[0],
+                                  'logs',
+                                  self.nice_name)
+            tensorboard_logger.configure(tb_dir, flush_secs=5)
             print("Start up a tensorboard server with the following command:")
-            print("  tensorboard --logdir {}".format(self.cache.fpath("logs")))
+            print("  tensorboard --logdir {}".format(tb_dir))
 
         return
 
@@ -255,13 +258,23 @@ class NetworkSystem(object):
         self.single_epoch_val()
         for _ in tqdm(range(start_epoch, self.epochs)):
             #t_epoch = time.time()
+            epoch_done = False
 
             self.single_epoch_train()
             if self.epoch % self.eval_val_every == (self.eval_val_every - 1):
                 self.single_epoch_val()
 
+                self.on_epoch()
+                epoch_done = True
+
+                # If model has improved, take requisite actions
+                if self._check_set_model_improved():
+                    self.on_model_improved()
+
             #self.time_epoch = time.time() - t_epoch
-            self.on_epoch()
+            if not epoch_done:
+                self.on_epoch()
+
             self.epoch += 1
 
         #self.time_total = time.time() - t_total
@@ -349,19 +362,8 @@ class NetworkSystem(object):
         if self.scale_metrics:
             self._scale_last_journal_entry()
 
-        if tensorboard and False:
-            for metric in sorted(self.journal):
-                tensorboard_logger.log_value(
-                    metric,
-                    self.journal[metric][self.epoch],
-                    self.epoch
-                )
-        else:
+        if not tensorboard:
             print(pretty_repr(self.epoch_summary(), indent_first=False))
-
-        # If model has improved, take requisite actions
-        if self._check_set_model_improved():
-            self.on_model_improved()
 
     def on_train(self):
         """ Actions to take when done training
@@ -384,8 +386,7 @@ class NetworkSystem(object):
             key_str = ', '.join(list(cache_data.keys()))
             print('  Saving {} ({})'.format(self.nice_name, key_str))
 
-        # TODO implement this with self.cache
-        self.cacher.save(cache_data)
+        #self.cacher.save(cache_data)
 
         # This is faster than pickling
         torch.save(cache_data, self.checkpoint_name)
