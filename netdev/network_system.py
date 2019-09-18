@@ -28,17 +28,54 @@ class NetworkSystem(object):
     def __init__(self, verbosity=1, epochs=1, work_dir='./models',
                  device='cpu', hash_on=None, nice_name='untitled',
                  reset=False, scale_metrics=True, selection_metric='error_val',
-                 selection_metric_goal='min', eval_val_every=10,
+                 selection_metric_goal='min', eval_val_every=10, save_every=10,
                  metrics=['loss_train', 'error_train', 'loss_val', 'error_val'],
                  **kwargs):
 
         """
             Network training and testing system, designed for modules to plug
-            into for simple part swapping. Several system parameters are simply
-            for housekeeping and therefore do not need to be considered when
-            saving the model, others affect the performance of the model and
-            should therefore be used in differentiating between different
-            models when saving.
+            into for simple part swapping.
+
+            Design concepts:
+                Several system parameters are simply for housekeeping and
+                therefore do not need to be considered when saving the model,
+                others affect the performance of the model and should therefore
+                be used in differentiating between different models when
+                saving.
+
+            Parameters:
+                verbosity (int): Level of verbosity desired. 0 is silent,
+                    higher numbers means more verbosity
+                epochs (int): number of epochs to train past its current point
+                work_dir (str): Location for saved models and tensorboard logs
+                device (str): 'cpu' or specified device
+                hash_on (dict or None): dictionary specifying parameters and
+                    values to hash on when generating the nice name. If none,
+                    it uses whatever is passed in **kwargs
+                nice_name (str): Prefix for saving name, and a good way to do
+                    human-readable scanning
+                reset (bool): Starts the model fresh, regardless of whether
+                    another model exists with the same name
+                scale_metrics (bool): Do we scale all user-defined metrics at
+                    the end of an epoch? Usually the answer is yes, so probably
+                    keep this as True
+                metrics (list of str): List of metrics to track. MUST follow
+                    the convention of "metricname_split", where split is one of
+                    ['train', 'val']
+                selection_metric (str): Metric (from metrics parameter) by
+                    which we determine if the model has improved or not. This
+                    determines when we save.
+                selection_metric_goal (str): What we want from the
+                    selection_metric parameter. If it's accuracy, we want
+                    'max', if it's error, we want 'min'
+                eval_val_every (int): How often to we evaluate the validation
+                    data? This also determines how often we save a "better
+                    model", since I assume the model should be selected based
+                    on its performance on validation data
+                save_every (int): How often we save, regardless of its performance.
+                **kwargs (dict): Additional parameters that need to be given,
+                    especially network modules like "model", "objective",
+                    "optimizer", "loaders", etc.
         """
 
         # These define some important items that impact the model
@@ -83,6 +120,7 @@ class NetworkSystem(object):
         self.nice_name = nice_name
         self.scale_metrics = scale_metrics
         self.eval_val_every = eval_val_every
+        self.save_every = save_every
 
         self.cache = None
         self.cache_name = None
@@ -91,8 +129,6 @@ class NetworkSystem(object):
         self.training = False
         self.epoch = 0
         self.best_epoch = -1
-        self.time_epoch = -1
-        self.time_total = -1
         self._hash_on = hash_on
 
         # Keep a tensor for tracking required metrics
@@ -257,7 +293,6 @@ class NetworkSystem(object):
 
         self.single_epoch_val()
         for _ in tqdm(range(start_epoch, self.epochs)):
-            #t_epoch = time.time()
             epoch_done = False
 
             self.single_epoch_train()
@@ -271,13 +306,15 @@ class NetworkSystem(object):
                 if self._check_set_model_improved():
                     self.on_model_improved()
 
-            #self.time_epoch = time.time() - t_epoch
+                # If model hasn't improved, save if it's time to do so
+                elif self.epoch % self.save_every == (self.save_every - 1):
+                    self.save_model()
+
             if not epoch_done:
                 self.on_epoch()
 
             self.epoch += 1
 
-        #self.time_total = time.time() - t_total
         self.on_train()
         return
 
@@ -371,7 +408,7 @@ class NetworkSystem(object):
         print('Done training')
         print(self.epoch_summary(precision=5, metrics=self.best_metrics, t=self.time_total))
 
-    def save_model(self):
+    def save_model(self, **kwargs):
         """ Save model parameters and some useful training information for
             future training or testing
         """
@@ -381,6 +418,9 @@ class NetworkSystem(object):
                       'best_metrics': self.best_metrics,
                       'best_epoch': self.best_epoch,
                       }
+
+        # If anything is specified, add it to the data to be saved
+        cache_data.update(kwargs)
 
         if self._v > 0:
             key_str = ', '.join(list(cache_data.keys()))
