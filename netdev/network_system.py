@@ -406,7 +406,8 @@ class NetworkSystem(object):
         """ Actions to take when done training
         """
         print('Done training')
-        print(self.epoch_summary(precision=5, metrics=self.best_metrics, t=self.time_total))
+        if not tensorboard:
+            print(self.epoch_summary(precision=5, metrics=self.best_metrics))
 
     def save_model(self, **kwargs):
         """ Save model parameters and some useful training information for
